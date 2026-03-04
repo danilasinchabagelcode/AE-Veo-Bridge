@@ -1,0 +1,121 @@
+name: Build Installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_pkg:
+        description: "Build macOS .pkg"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-zxp:
+    name: Build ZXP (macOS)
+    runs-on: macos-latest
+    env:
+      CI_CERT_PASSWORD: ${{ secrets.ZXP_CERT_PASSWORD != '' && secrets.ZXP_CERT_PASSWORD || 'veobridge-ci-temp-password' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ZXPSignCMD
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          TMP="$(mktemp -d)"
+          curl -L "https://github.com/Adobe-CEP/CEP-Resources/archive/refs/heads/master.zip" -o "$TMP/cep-resources.zip"
+          unzip -q "$TMP/cep-resources.zip" -d "$TMP"
+          ROOT="$(find "$TMP" -maxdepth 2 -type d -name 'CEP-Resources-*' | head -n 1)"
+          BIN="$(find "$ROOT/ZXPSignCMD/4.1.3" -type f -name 'ZXPSignCMD' ! -name '*.exe' | head -n 1)"
+          if [[ -z "${BIN:-}" ]]; then
+            BIN="$(find "$ROOT/ZXPSignCMD/4.1.3" -type f -name 'ZXPSignCmd' ! -name '*.exe' | head -n 1)"
+          fi
+          if [[ -z "${BIN:-}" ]]; then
+            echo "ZXPSignCMD binary not found in CEP-Resources/ZXPSignCMD/4.1.3"
+            exit 1
+          fi
+          install -m 755 "$BIN" "$HOME/.local/bin/ZXPSignCMD"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/ZXPSignCMD" -h | head -n 5
+
+      - name: Prepare ZXP build config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .zxp-build.env <<CFG
+          ZXPSIGN_CMD=$HOME/.local/bin/ZXPSignCMD
+          CERT_PATH=$GITHUB_WORKSPACE/.certs/VeoBridgeCert.p12
+          CERT_PASSWORD=${CI_CERT_PASSWORD}
+          CERT_COUNTRY=US
+          CERT_STATE=NA
+          CERT_COMMON_NAME=Veo Bridge CI
+          CERT_ORG=Veo Bridge
+          CERT_ORG_UNIT=CI
+          CFG
+
+      - name: Build ZXP
+        shell: bash
+        run: bash scripts/build-zxp.sh
+
+      - name: Upload ZXP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: veobridge-zxp
+          path: dist/*.zxp
+          if-no-files-found: error
+
+  build-msi:
+    name: Build MSI (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install WiX Toolset v3
+        shell: powershell
+        run: |
+          choco install wixtoolset --version=3.11.2 -y --no-progress
+          $wixBin = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
+          if (!(Test-Path $wixBin)) {
+            throw "WiX bin directory not found: $wixBin"
+          }
+          "$wixBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify WiX tools
+        shell: powershell
+        run: |
+          Get-Command heat.exe | Out-String | Write-Host
+          Get-Command candle.exe | Out-String | Write-Host
+          Get-Command light.exe | Out-String | Write-Host
+
+      - name: Build MSI
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\build-msi.ps1
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: veobridge-msi
+          path: dist/*.msi
+          if-no-files-found: error
+
+  build-pkg:
+    name: Build PKG (macOS)
+    if: ${{ inputs.build_pkg }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build PKG
+        shell: bash
+        run: bash scripts/build-pkg.sh
+
+      - name: Upload PKG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: veobridge-pkg
+          path: dist/*.pkg
+          if-no-files-found: error

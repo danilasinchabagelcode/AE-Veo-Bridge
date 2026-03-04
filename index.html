@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veo Bridge</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+    <main class="container panel-root launcher-root">
+        <h1 class="title">Veo Bridge</h1>
+
+        <section class="card launcher-card">
+            <div class="toolbar launcher-toolbar">
+                <button id="btnCapture" type="button">Capture</button>
+                <button id="btnOpenGallery" type="button">Open Gallery</button>
+                <button id="btnSettings" type="button">Settings</button>
+            </div>
+            <p class="muted-note">Use Gallery for Start/End setup, prompt, generation, and video import.</p>
+        </section>
+
+        <p id="statusLine" class="status-line">Ready.</p>
+    </main>
+
+    <div id="settingsModal" class="modal-backdrop" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+            <h2 id="settingsTitle" class="modal-title">Settings</h2>
+            <label for="apiKeyInput" class="field-label">API key</label>
+            <input id="apiKeyInput" type="password" placeholder="Enter Gemini API key">
+            <div class="modal-actions">
+                <button id="btnCloseSettings" type="button">Close</button>
+                <button id="btnSaveApiKey" type="button" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/csinterface-lite.js"></script>
+    <script src="./js/sharedState.js"></script>
+    <script src="./js/settingsStore.js"></script>
+    <script src="./js/main.js"></script>
+</body>
+</html>
