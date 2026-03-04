@@ -1,6 +1,6 @@
 # Veo Bridge (CEP Extension Skeleton)
 
-This repository contains a minimal CEP extension scaffold for Adobe After Effects (`AEFT`, version `25+`).
+This repository contains a CEP extension scaffold for Adobe After Effects (`AEFT`, version `17+`, including AE 2020+).
 
 ## Structure
 
@@ -137,8 +137,9 @@ Optional secret:
    ```text
    ~/Library/Application Support/Adobe/CEP/extensions/Veo-Bridge
    ```
-3. Enable debug mode for CEP (CSXS 11):
+3. Enable debug mode for CEP (recommended for CSXS 10/11):
    ```bash
+   defaults write com.adobe.CSXS.10 PlayerDebugMode 1
    defaults write com.adobe.CSXS.11 PlayerDebugMode 1
    ```
 4. Restart After Effects.
@@ -149,8 +150,9 @@ Optional secret:
    ```text
    C:\Users\<YourUser>\AppData\Roaming\Adobe\CEP\extensions\Veo-Bridge
    ```
-2. Enable debug mode for CEP (CSXS 11):
+2. Enable debug mode for CEP (recommended for CSXS 10/11):
    ```bat
+   reg add HKCU\Software\Adobe\CSXS.10 /v PlayerDebugMode /t REG_SZ /d 1 /f
    reg add HKCU\Software\Adobe\CSXS.11 /v PlayerDebugMode /t REG_SZ /d 1 /f
    ```
 3. Restart After Effects.
