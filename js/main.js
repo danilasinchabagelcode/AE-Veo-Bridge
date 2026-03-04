@@ -238,13 +238,6 @@
             try {
                 bridge.requestOpenExtension("com.veobridge.gallery", "");
                 opened = true;
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryError) {
-                        // ignore
-                    }
-                }, 120);
             } catch (requestOpenError) {
                 opened = false;
             }
