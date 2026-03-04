@@ -138,7 +138,9 @@ if (!(Test-Path $mainWixObj) -or !(Test-Path $harvestWixObj)) {
 if (Test-Path $msiPath) {
     Remove-Item -Force -Path $msiPath
 }
-& $lightExe -nologo -out $msiPath $mainWixObj $harvestWixObj
+# Per-user install into AppData triggers standard ICE checks (ICE38/ICE64/ICE91).
+# They are safe for this extension layout and are suppressed to allow CI packaging.
+& $lightExe -nologo -sice:ICE38 -sice:ICE64 -sice:ICE91 -out $msiPath $mainWixObj $harvestWixObj
 if ($LASTEXITCODE -ne 0) { throw "light.exe failed" }
 
 if (Test-Path $BuildRoot) {

@@ -39,7 +39,14 @@ jobs:
           fi
           install -m 755 "$BIN" "$HOME/.local/bin/ZXPSignCMD"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/ZXPSignCMD" -h | head -n 5
+          # ZXPSignCMD may return non-zero on help/usage; do not fail the job here.
+          set +e
+          "$HOME/.local/bin/ZXPSignCMD" -h > "$TMP/zxpsign-help.txt" 2>&1
+          if [[ ! -s "$TMP/zxpsign-help.txt" ]]; then
+            "$HOME/.local/bin/ZXPSignCMD" > "$TMP/zxpsign-help.txt" 2>&1
+          fi
+          set -e
+          head -n 5 "$TMP/zxpsign-help.txt" || true
 
       - name: Prepare ZXP build config
         shell: bash
