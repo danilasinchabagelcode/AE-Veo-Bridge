@@ -178,27 +178,6 @@
         }
         features = "width=" + galleryWidth + ",height=" + galleryHeight + ",resizable=yes,scrollbars=yes";
 
-        if (bridge && typeof bridge.requestOpenExtension === "function") {
-            try {
-                bridge.requestOpenExtension("com.veobridge.gallery", "");
-                opened = true;
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryError) {
-                        // ignore
-                    }
-                }, 120);
-            } catch (requestOpenError) {
-                opened = false;
-            }
-        }
-
-        if (opened) {
-            setStatus("Gallery opened.", false);
-            return;
-        }
-
         if (galleryWindowRef && !galleryWindowRef.closed) {
             popup = galleryWindowRef;
             opened = true;
@@ -216,6 +195,7 @@
             return;
         }
 
+        // Compatibility-first path for older CEP builds (AE 2020): open popup directly.
         try {
             popup = window.open("gallery.html", "VeoBridgeGallery", features);
             opened = !!popup;
@@ -249,6 +229,28 @@
             } catch (resizeError) {
                 // ignore
             }
+            setStatus("Gallery opened.", false);
+            return;
+        }
+
+        // Fallback: open modeless extension window if popup creation is blocked.
+        if (bridge && typeof bridge.requestOpenExtension === "function") {
+            try {
+                bridge.requestOpenExtension("com.veobridge.gallery", "");
+                opened = true;
+                window.setTimeout(function () {
+                    try {
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryError) {
+                        // ignore
+                    }
+                }, 120);
+            } catch (requestOpenError) {
+                opened = false;
+            }
+        }
+
+        if (opened) {
             setStatus("Gallery opened.", false);
             return;
         }
