@@ -53,9 +53,11 @@ jobs:
         run: |
           set -euo pipefail
           CERT_PASSWORD="${CI_CERT_PASSWORD:-veobridge-ci-temp-password}"
+          CERT_PATH="$RUNNER_TEMP/VeoBridgeCert.p12"
+          rm -f "$CERT_PATH"
           cat > .zxp-build.env <<CFG
           ZXPSIGN_CMD=$HOME/.local/bin/ZXPSignCMD
-          CERT_PATH=$GITHUB_WORKSPACE/.certs/VeoBridgeCert.p12
+          CERT_PATH=${CERT_PATH}
           CERT_PASSWORD=${CERT_PASSWORD}
           CERT_COUNTRY=US
           CERT_STATE=NA
