@@ -2,12 +2,6 @@ name: Build Installers
 
 on:
   workflow_dispatch:
-    inputs:
-      build_pkg:
-        description: "Build macOS .pkg"
-        required: false
-        type: boolean
-        default: true
 
 jobs:
   build-zxp:
@@ -147,7 +141,6 @@ jobs:
 
   build-pkg:
     name: Build PKG (macOS)
-    if: ${{ inputs.build_pkg }}
     runs-on: macos-latest
     steps:
       - name: Checkout
