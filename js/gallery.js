@@ -42,6 +42,7 @@
     var windowSizePollTimer = null;
     var pendingVideoResumeTimer = null;
     var pendingJobsLeaseHeartbeatTimer = null;
+    var pendingImageQueue = [];
     var lastKnownWindowWidth = 0;
     var lastKnownWindowHeight = 0;
     var pendingJobsRunnerId = "runner_" + String(new Date().getTime()) + "_" + String(Math.floor(Math.random() * 1000000));
@@ -3948,10 +3949,10 @@
         setModeBtnState(btnReference, mode === VIDEO_MODE_REFERENCE);
 
         if (btnFrames) {
-            btnFrames.disabled = isVideoGenerating || isImageGenerating;
+            btnFrames.disabled = false;
         }
         if (btnReference) {
-            btnReference.disabled = isVideoGenerating || isImageGenerating;
+            btnReference.disabled = false;
         }
         if (generateBlock) {
             generateBlock.setAttribute("data-video-mode", mode);
@@ -4191,8 +4192,7 @@
     }
 
     function refreshBusyUi() {
-        var isBusy = isVideoGenerating || isImageGenerating;
-
+        // Keep composer controls interactive so users can queue next requests immediately.
         setControlsEnabled([
             "btnGenerate",
             "btnVideoFlowOptions",
@@ -4219,7 +4219,7 @@
             "promptInput",
             "btnTabVideo",
             "btnTabImage"
-        ], !isBusy);
+        ], true);
 
         setControlsEnabled([
             "btnGenerateImage",
@@ -4236,7 +4236,7 @@
             "btnAddImageToFrames",
             "btnRevealImage",
             "btnDeleteImage"
-        ], !isBusy);
+        ], true);
 
         renderVideoModeUi(getState());
     }
@@ -4844,6 +4844,9 @@
             stopPendingJobsLeaseHeartbeat();
             releasePendingJobsLease();
             refreshBusyUi();
+            if (hasActivePendingVideoJobs(getState())) {
+                schedulePendingVideoResume(120);
+            }
             if (failed > 0) {
                 setGenerationStatus("Completed with errors (" + done + "/" + total + " done, " + failed + " failed).", true);
                 setStatus("Video generation completed with errors.", true);
@@ -4862,7 +4865,7 @@
         if (!apiKey) {
             return Promise.reject(new Error("API key is missing. Open Settings in the main panel."));
         }
-        if (isVideoGenerating || isImageGenerating) {
+        if (isVideoGenerating) {
             return Promise.reject(new Error("Another operation is already running."));
         }
         if (!acquirePendingJobsLease()) {
@@ -4972,7 +4975,7 @@
         }
         pendingVideoResumeTimer = window.setTimeout(function () {
             pendingVideoResumeTimer = null;
-            if (isVideoGenerating || isImageGenerating || isResumingPendingJobs) {
+            if (isVideoGenerating || isResumingPendingJobs) {
                 return;
             }
             var state = getState();
@@ -5077,16 +5080,109 @@
         });
     }
 
+    function runQueuedImageBatch(request) {
+        var input = request.input;
+        var sampleCount = request.sampleCount;
+        var batchId = request.batchId;
+        var done = 0;
+        var failed = 0;
+        var jobs = [];
+        var nextIndex = 0;
+        var activeCount = 0;
+        var completedCount = 0;
+        var concurrency = Math.min(4, sampleCount);
+
+        isImageGenerating = true;
+        refreshBusyUi();
+        jobs = enqueueImageGenerationJobs(input, sampleCount, batchId);
+
+        function updateBatchStatus(stage, sampleIndex, isError) {
+            var text = "Sample " + sampleIndex + "/" + sampleCount + ": " + stage + "... (" + done + "/" + sampleCount + " done";
+            if (failed > 0) {
+                text += ", " + failed + " failed";
+            }
+            text += ")";
+            setImageGenerationStatus(text, !!isError);
+        }
+
+        return new Promise(function (resolve) {
+            function finalize() {
+                isImageGenerating = false;
+                refreshBusyUi();
+                if (failed > 0) {
+                    setImageGenerationStatus("Completed with errors (" + done + "/" + sampleCount + " done, " + failed + " failed).", true);
+                    setStatus("Image generation completed with errors.", true);
+                } else {
+                    setImageGenerationStatus("Done.", false);
+                    setStatus("Image generation finished.", false);
+                }
+                resolve({
+                    done: done,
+                    failed: failed,
+                    total: sampleCount,
+                    hasErrors: failed > 0
+                });
+            }
+
+            function maybeFinish() {
+                if (completedCount >= sampleCount && activeCount === 0) {
+                    finalize();
+                }
+            }
+
+            function launchNext() {
+                var currentJob;
+                while (activeCount < concurrency && nextIndex < sampleCount) {
+                    currentJob = jobs[nextIndex];
+                    nextIndex += 1;
+                    activeCount += 1;
+                    updateBatchStatus("Uploading", currentJob.sampleIndex || nextIndex, false);
+
+                    (function (jobRef) {
+                        runImageGeneration(input, jobRef.sampleIndex || 1, sampleCount, batchId, jobRef.id).then(function () {
+                            done += 1;
+                            activeCount -= 1;
+                            completedCount += 1;
+                            launchNext();
+                            maybeFinish();
+                        }, function () {
+                            failed += 1;
+                            activeCount -= 1;
+                            completedCount += 1;
+                            updateBatchStatus("Failed", jobRef.sampleIndex || 1, true);
+                            launchNext();
+                            maybeFinish();
+                        });
+                    }(currentJob));
+                }
+            }
+
+            launchNext();
+            maybeFinish();
+        });
+    }
+
+    function processPendingImageQueue() {
+        if (isImageGenerating) {
+            return;
+        }
+        if (!pendingImageQueue.length) {
+            return;
+        }
+
+        runQueuedImageBatch(pendingImageQueue.shift()).then(function () {
+            if (pendingImageQueue.length) {
+                setImageGenerationStatus("Starting next queued image batch...", false);
+                processPendingImageQueue();
+            }
+        });
+    }
+
     function onGenerateClick() {
         var input;
         var apiMode;
         var jobs = [];
         var jobIds = [];
-
-        if (isVideoGenerating || isImageGenerating) {
-            setGenerationStatus("Generation is already running.", true);
-            return;
-        }
 
         if (activeGenerationType === GEN_TYPE_IMAGE) {
             onGenerateImageClick();
@@ -5131,6 +5227,12 @@
                 for (i = 0; i < jobs.length; i += 1) {
                     jobIds.push(jobs[i].id);
                 }
+                if (isVideoGenerating || isResumingPendingJobs) {
+                    setGenerationStatus("Queued " + jobs.length + " sample(s). They will start automatically.", false);
+                    setStatus("Queued video batch (" + jobs.length + " sample(s)).", false);
+                    schedulePendingVideoResume(120);
+                    return null;
+                }
                 return runPendingVideoJobs({
                     jobIds: jobIds,
                     stopOnError: false,
@@ -5139,6 +5241,9 @@
                 });
             })
             .then(function (result) {
+                if (!result) {
+                    return;
+                }
                 if (result && result.hasErrors) {
                     setGenerationStatus("Completed with errors (" + result.done + "/" + result.total + " done, " + result.failed + " failed).", true);
                     setStatus("Video generation completed with errors.", true);
@@ -5156,19 +5261,7 @@
         var input;
         var sampleSelect = getById("imageSampleCountSelect");
         var sampleCount = parseSampleCount(sampleSelect ? sampleSelect.value : "1");
-        var done = 0;
-        var failed = 0;
         var batchId = makeId("image_batch");
-        var jobs = [];
-        var nextIndex = 0;
-        var activeCount = 0;
-        var completedCount = 0;
-        var concurrency = Math.min(4, sampleCount);
-
-        if (isImageGenerating || isVideoGenerating) {
-            setImageGenerationStatus("Another operation is already running.", true);
-            return;
-        }
 
         if (!window.VeoApi || typeof window.VeoApi.generateImage !== "function") {
             setImageGenerationStatus("VeoApi.generateImage is unavailable.", true);
@@ -5183,66 +5276,19 @@
             return;
         }
 
-        isImageGenerating = true;
-        refreshBusyUi();
-        jobs = enqueueImageGenerationJobs(input, sampleCount, batchId);
+        pendingImageQueue.push({
+            input: input,
+            sampleCount: sampleCount,
+            batchId: batchId
+        });
 
-        function updateBatchStatus(stage, sampleIndex, isError) {
-            var text = "Sample " + sampleIndex + "/" + sampleCount + ": " + stage + "... (" + done + "/" + sampleCount + " done";
-            if (failed > 0) {
-                text += ", " + failed + " failed";
-            }
-            text += ")";
-            setImageGenerationStatus(text, !!isError);
+        if (isImageGenerating) {
+            setImageGenerationStatus("Queued image batch (" + sampleCount + " sample(s)).", false);
+            setStatus("Queued image batch (" + sampleCount + " sample(s)).", false);
+            return;
         }
 
-        function finalize() {
-            isImageGenerating = false;
-            refreshBusyUi();
-            if (failed > 0) {
-                setImageGenerationStatus("Completed with errors (" + done + "/" + sampleCount + " done, " + failed + " failed).", true);
-                setStatus("Image generation completed with errors.", true);
-                return;
-            }
-            setImageGenerationStatus("Done.", false);
-            setStatus("Image generation finished.", false);
-        }
-
-        function maybeFinish() {
-            if (completedCount >= sampleCount && activeCount === 0) {
-                finalize();
-            }
-        }
-
-        function launchNext() {
-            var currentJob;
-            while (activeCount < concurrency && nextIndex < sampleCount) {
-                currentJob = jobs[nextIndex];
-                nextIndex += 1;
-                activeCount += 1;
-                updateBatchStatus("Uploading", currentJob.sampleIndex || nextIndex, false);
-
-                (function (jobRef) {
-                    runImageGeneration(input, jobRef.sampleIndex || 1, sampleCount, batchId, jobRef.id).then(function () {
-                        done += 1;
-                        activeCount -= 1;
-                        completedCount += 1;
-                        launchNext();
-                        maybeFinish();
-                    }, function (error) {
-                        failed += 1;
-                        activeCount -= 1;
-                        completedCount += 1;
-                        updateBatchStatus("Failed", jobRef.sampleIndex || 1, true);
-                        launchNext();
-                        maybeFinish();
-                    });
-                }(currentJob));
-            }
-        }
-
-        launchNext();
-        maybeFinish();
+        processPendingImageQueue();
     }
 
     function setStart() {
@@ -7289,7 +7335,7 @@
         window.VeoBridgeState.onStateChanged = function (nextState) {
             var stateSnapshot = nextState || getState();
             renderAll(stateSnapshot);
-            if (!isVideoGenerating && !isImageGenerating && hasActivePendingVideoJobs(stateSnapshot)) {
+            if (!isVideoGenerating && hasActivePendingVideoJobs(stateSnapshot)) {
                 schedulePendingVideoResume(380);
             }
         };
