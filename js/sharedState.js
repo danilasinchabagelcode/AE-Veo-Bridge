@@ -200,6 +200,8 @@
             aspectRatio: input.aspectRatio || "1:1",
             imageSize: input.imageSize || "1K",
             model: input.model || "gemini-3.1-flash-image-preview",
+            refIds: input.refIds && input.refIds instanceof Array ? input.refIds.slice(0) : [],
+            refPaths: input.refPaths && input.refPaths instanceof Array ? input.refPaths.slice(0) : [],
             width: typeof input.width === "number" ? input.width : null,
             height: typeof input.height === "number" ? input.height : null,
             status: input.status || "ready"

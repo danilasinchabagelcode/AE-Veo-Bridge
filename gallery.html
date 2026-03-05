@@ -12,7 +12,10 @@
             <div class="gallery-title-wrap">
                 <h1 class="title">Veo Bridge Studio</h1>
             </div>
-            <button id="btnClose" type="button">Close</button>
+            <div class="gallery-topbar-actions">
+                <button id="btnUndoDelete" type="button" disabled>Undo Delete</button>
+                <button id="btnClose" type="button">Close</button>
+            </div>
         </header>
 
         <section id="panelVideo" class="tab-panel flow-panel" data-panel-kind="studio">
@@ -212,10 +215,11 @@
                         <h2 id="mediaPreviewTitle">Media Preview</h2>
                         <div class="flow-media-preview-actions">
                             <button id="btnMediaPreviewImport" type="button">Import</button>
+                            <button id="btnMediaPreviewImportComp" type="button">Import to Comp</button>
                             <button id="btnMediaPreviewCapture" type="button" title="Capture current frame">Capture</button>
                             <button id="btnMediaPreviewToFrames" type="button">To Frames</button>
                             <button id="btnMediaPreviewReveal" type="button">Reveal</button>
-                            <button id="btnMediaPreviewDelete" type="button">Delete</button>
+                            <button id="btnMediaPreviewDelete" type="button" class="is-danger">Delete</button>
                             <button id="btnCloseMediaPreview" type="button">Close</button>
                         </div>
                     </div>
@@ -240,7 +244,7 @@
             <button id="btnImportImage" type="button" class="ghost-hidden">Import</button>
             <button id="btnAddImageToFrames" type="button" class="ghost-hidden">Add</button>
             <button id="btnRevealImage" type="button" class="ghost-hidden">Reveal</button>
-            <button id="btnDeleteImage" type="button" class="ghost-hidden">Delete</button>
+            <button id="btnDeleteImage" type="button" class="ghost-hidden is-danger">Delete</button>
         </section>
 
         <div class="ghost-hidden">
@@ -254,7 +258,7 @@
             <button id="btnToggleVideoMetaDetails" type="button">Show details</button>
             <button id="btnImportVideo" type="button">Import</button>
             <button id="btnRevealVideo" type="button">Reveal</button>
-            <button id="btnDeleteVideo" type="button">Delete</button>
+            <button id="btnDeleteVideo" type="button" class="is-danger">Delete</button>
             <button id="btnImageFlowOptions" type="button">Image options</button>
             <div id="imageFlowOptions"></div>
             <div id="splitVideoColumns"></div>

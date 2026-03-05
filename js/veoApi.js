@@ -31,6 +31,91 @@
     var MAX_IMAGE_REFERENCE_INPUTS = 14;
     var MAX_VIDEO_REFERENCE_INPUTS = 3;
     var TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO0hY9sAAAAASUVORK5CYII=";
+    var SCRIPT_CHAR_TO_LATIN = {
+        272: "D", 273: "d",
+        198: "AE", 230: "ae",
+        338: "OE", 339: "oe",
+        223: "ss",
+        216: "O", 248: "o",
+        321: "L", 322: "l",
+        222: "Th", 254: "th",
+        1025: "Yo", 1105: "yo",
+        1028: "Ye", 1108: "ye",
+        1030: "I", 1110: "i",
+        1031: "Yi", 1111: "yi",
+        1038: "U", 1118: "u",
+        1168: "G", 1169: "g",
+        1040: "A", 1072: "a",
+        1041: "B", 1073: "b",
+        1042: "V", 1074: "v",
+        1043: "G", 1075: "g",
+        1044: "D", 1076: "d",
+        1045: "E", 1077: "e",
+        1046: "Zh", 1078: "zh",
+        1047: "Z", 1079: "z",
+        1048: "I", 1080: "i",
+        1049: "Y", 1081: "y",
+        1050: "K", 1082: "k",
+        1051: "L", 1083: "l",
+        1052: "M", 1084: "m",
+        1053: "N", 1085: "n",
+        1054: "O", 1086: "o",
+        1055: "P", 1087: "p",
+        1056: "R", 1088: "r",
+        1057: "S", 1089: "s",
+        1058: "T", 1090: "t",
+        1059: "U", 1091: "u",
+        1060: "F", 1092: "f",
+        1061: "H", 1093: "h",
+        1062: "Ts", 1094: "ts",
+        1063: "Ch", 1095: "ch",
+        1064: "Sh", 1096: "sh",
+        1065: "Shch", 1097: "shch",
+        1066: "", 1098: "",
+        1067: "Y", 1099: "y",
+        1068: "", 1100: "",
+        1069: "E", 1101: "e",
+        1070: "Yu", 1102: "yu",
+        1071: "Ya", 1103: "ya",
+        902: "A", 904: "E", 905: "I", 906: "I",
+        908: "O", 910: "Y", 911: "O",
+        913: "A", 914: "V", 915: "G", 916: "D",
+        917: "E", 918: "Z", 919: "I", 920: "Th",
+        921: "I", 922: "K", 923: "L", 924: "M",
+        925: "N", 926: "X", 927: "O", 928: "P",
+        929: "R", 931: "S", 932: "T", 933: "Y",
+        934: "F", 935: "Ch", 936: "Ps", 937: "O",
+        938: "I", 939: "Y",
+        940: "a", 941: "e", 942: "i", 943: "i",
+        944: "y", 945: "a", 946: "v", 947: "g",
+        948: "d", 949: "e", 950: "z", 951: "i",
+        952: "th", 953: "i", 954: "k", 955: "l",
+        956: "m", 957: "n", 958: "x", 959: "o",
+        960: "p", 961: "r", 962: "s", 963: "s",
+        964: "t", 965: "y", 966: "f", 967: "ch",
+        968: "ps", 969: "o", 970: "i", 971: "y",
+        972: "o", 973: "y", 974: "o",
+        1488: "", 1489: "b", 1490: "g", 1491: "d",
+        1492: "h", 1493: "v", 1494: "z", 1495: "kh",
+        1496: "t", 1497: "y", 1498: "k", 1499: "k",
+        1500: "l", 1501: "m", 1502: "m", 1503: "n",
+        1504: "n", 1505: "s", 1506: "", 1507: "p",
+        1508: "p", 1509: "ts", 1510: "ts", 1511: "k",
+        1512: "r", 1513: "sh", 1514: "t",
+        1569: "a", 1570: "a", 1571: "a", 1572: "w",
+        1573: "i", 1574: "y", 1575: "a", 1576: "b",
+        1577: "h", 1578: "t", 1579: "th", 1580: "j",
+        1581: "h", 1582: "kh", 1583: "d", 1584: "dh",
+        1585: "r", 1586: "z", 1587: "s", 1588: "sh",
+        1589: "s", 1590: "d", 1591: "t", 1592: "z",
+        1593: "a", 1594: "gh", 1600: "", 1601: "f", 1602: "q",
+        1603: "k", 1604: "l", 1605: "m", 1606: "n",
+        1607: "h", 1608: "w", 1609: "a", 1610: "y",
+        1662: "p", 1670: "ch", 1688: "zh", 1705: "k", 1711: "g", 1740: "y"
+    };
+    var HANGUL_INITIAL_ROMAN = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
+    var HANGUL_VOWEL_ROMAN = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"];
+    var HANGUL_FINAL_ROMAN = ["", "k", "k", "ks", "n", "nj", "nh", "t", "l", "lk", "lm", "lb", "ls", "lt", "lp", "lh", "m", "p", "ps", "t", "t", "ng", "t", "t", "k", "t", "p", "h"];
 
     var fs = null;
     var path = null;
@@ -660,6 +745,256 @@
             .replace(/\s+/g, "_");
     }
 
+    function _shortHash36(value) {
+        var text = String(value || "");
+        var hash = 2166136261;
+        var i;
+
+        for (i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i);
+            hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+            hash >>>= 0;
+        }
+
+        return ("000000" + String((hash >>> 0).toString(36))).slice(-6);
+    }
+
+    function _toPositiveInt(value, fallback) {
+        var num = parseInt(value, 10);
+        var base = parseInt(fallback, 10);
+        if (!isFinite(base) || base < 1) {
+            base = 1;
+        }
+        if (!isFinite(num) || num < 1) {
+            return base;
+        }
+        return num;
+    }
+
+    function _stripCombiningMarks(text) {
+        return String(text || "").replace(/[\u0300-\u036f\u0591-\u05c7\u0610-\u061a\u064b-\u065f\u06d6-\u06ed]/g, "");
+    }
+
+    function _transliterateHangulSyllable(code) {
+        var index;
+        var initialIndex;
+        var vowelIndex;
+        var finalIndex;
+
+        if (code < 44032 || code > 55203) {
+            return "";
+        }
+
+        index = code - 44032;
+        initialIndex = Math.floor(index / 588);
+        vowelIndex = Math.floor((index % 588) / 28);
+        finalIndex = index % 28;
+
+        return (HANGUL_INITIAL_ROMAN[initialIndex] || "") +
+            (HANGUL_VOWEL_ROMAN[vowelIndex] || "") +
+            (HANGUL_FINAL_ROMAN[finalIndex] || "");
+    }
+
+    function _transliterateToAscii(value) {
+        var text = String(value || "");
+        var out = "";
+        var i;
+        var j;
+        var code;
+        var mapped;
+        var ch;
+        var decomposed;
+        var decompCode;
+        var decompMapped;
+        var appended;
+
+        for (i = 0; i < text.length; i += 1) {
+            code = text.charCodeAt(i);
+            if ((code >= 768 && code <= 879) ||
+                (code >= 1425 && code <= 1479) ||
+                (code >= 1552 && code <= 1562) ||
+                (code >= 1611 && code <= 1631) ||
+                (code >= 1750 && code <= 1773) ||
+                code === 8204 || code === 8205) {
+                continue;
+            }
+            if (code >= 44032 && code <= 55203) {
+                out += _transliterateHangulSyllable(code);
+                continue;
+            }
+
+            mapped = SCRIPT_CHAR_TO_LATIN[code];
+            if (typeof mapped === "string") {
+                out += mapped;
+                continue;
+            }
+
+            ch = text.charAt(i);
+            if (code >= 32 && code <= 126) {
+                out += ch;
+                continue;
+            }
+
+            appended = false;
+            if (ch.normalize) {
+                try {
+                    decomposed = _stripCombiningMarks(ch.normalize("NFD"));
+                } catch (normalizeError) {
+                    decomposed = ch;
+                }
+            } else {
+                decomposed = ch;
+            }
+
+            for (j = 0; j < decomposed.length; j += 1) {
+                decompCode = decomposed.charCodeAt(j);
+                decompMapped = SCRIPT_CHAR_TO_LATIN[decompCode];
+                if (typeof decompMapped === "string") {
+                    out += decompMapped;
+                    appended = true;
+                    continue;
+                }
+                if (decompCode >= 32 && decompCode <= 126) {
+                    out += decomposed.charAt(j);
+                    appended = true;
+                }
+            }
+
+            if (!appended) {
+                out += " ";
+            }
+        }
+
+        return out;
+    }
+
+    function _promptSlug(promptText) {
+        var cleaned = _collapseWhitespace(promptText || "");
+        var latin;
+        var words;
+
+        if (!cleaned) {
+            return "untitled";
+        }
+
+        latin = _transliterateToAscii(cleaned)
+            .toLowerCase()
+            .replace(/['`]/g, "")
+            .replace(/[^a-z0-9]+/g, " ")
+            .replace(/\s+/g, " ")
+            .replace(/^\s+|\s+$/g, "");
+
+        if (!latin) {
+            return "untitled";
+        }
+
+        words = latin.split(" ");
+        if (words.length > 3) {
+            words = words.slice(0, 3);
+        }
+        return words.join("-");
+    }
+
+    function _aspectToken(aspectRatio) {
+        var raw = String(aspectRatio || "").replace(/^\s+|\s+$/g, "");
+        var match = raw.match(/^([0-9]+(?:\.[0-9]+)?)\s*[:x\/]\s*([0-9]+(?:\.[0-9]+)?)$/i);
+        var w;
+        var h;
+        var ratio;
+
+        if (match) {
+            w = parseFloat(match[1]);
+            h = parseFloat(match[2]);
+            if (isFinite(w) && isFinite(h) && h > 0) {
+                ratio = w / h;
+                if (Math.abs(ratio - 1) < 0.04) {
+                    return "Rect";
+                }
+                return ratio > 1 ? "Hor" : "Port";
+            }
+        }
+
+        if (raw === "16:9") {
+            return "Hor";
+        }
+        if (raw === "9:16") {
+            return "Port";
+        }
+        return "Rect";
+    }
+
+    function _mediaTypeToken(mediaType) {
+        var raw = String(mediaType || "").toLowerCase();
+        return raw === "video" ? "vid" : "img";
+    }
+
+    function _modeToken(mediaType, mode) {
+        var type = String(mediaType || "").toLowerCase();
+        var raw = String(mode || "").toLowerCase();
+        if (type === "video") {
+            if (raw.indexOf("ref") === 0) {
+                return "ref";
+            }
+            if (raw.indexOf("inter") === 0 || raw.indexOf("frame") === 0) {
+                return "frm";
+            }
+            if (raw.indexOf("image") === 0) {
+                return "img";
+            }
+            return "txt";
+        }
+        if (raw.indexOf("frame") === 0) {
+            return "cap";
+        }
+        return "gen";
+    }
+
+    function _buildMediaFileStem(options) {
+        var opts = options || {};
+        var promptPart = _promptSlug(opts.prompt || "");
+        var typePart = _mediaTypeToken(opts.mediaType || "");
+        var modePart = _modeToken(opts.mediaType || "", opts.mode || "");
+        var aspectPart = _aspectToken(opts.aspectRatio || "");
+        var sampleIndex = _toPositiveInt(opts.sampleIndex, 1);
+        var sampleCount = _toPositiveInt(opts.sampleCount, sampleIndex);
+        var tsDigits = _timestampString().replace(/[^0-9]/g, "");
+        var uniqueDigits = tsDigits ? tsDigits.slice(-8) : String(new Date().getTime()).slice(-8);
+        var hashPart = _shortHash36([
+            promptPart,
+            typePart,
+            modePart,
+            aspectPart,
+            String(sampleIndex),
+            String(sampleCount),
+            String(opts.modelId || ""),
+            uniqueDigits,
+            String(Math.floor(Math.random() * 1000000))
+        ].join("|"));
+        var stem = [
+            promptPart,
+            typePart + modePart + aspectPart,
+            "s" + String(sampleIndex) + "of" + String(sampleCount),
+            uniqueDigits + hashPart
+        ].join("__");
+
+        stem = _safeFileName(stem).replace(/^_+|_+$/g, "");
+        if (!stem) {
+            stem = "untitled__imggenRect__s1of1__" + uniqueDigits + hashPart;
+        }
+        if (stem.length > 120) {
+            stem = stem.substring(0, 120);
+        }
+        return stem;
+    }
+
+    function _buildMediaFileName(options, ext) {
+        var extension = String(ext || "");
+        if (extension && extension.charAt(0) !== ".") {
+            extension = "." + extension;
+        }
+        return _safeFileName(_buildMediaFileStem(options || {}) + extension);
+    }
+
     function _buildPredictImagePayload(base64Data, mimeType) {
         return {
             bytesBase64Encoded: String(base64Data || ""),
@@ -849,33 +1184,55 @@
         throw new Error("Base64 decoding requires Node Buffer support.");
     }
 
-    function _saveGeneratedImage(base64Data, mimeType, preferredImagesDir) {
+    function _saveGeneratedImage(base64Data, mimeType, preferredImagesDir, namingOptions) {
         var imagesDir = preferredImagesDir || _resolveImagesDir();
         var ext = _extensionFromMimeType(mimeType);
-        var fileName = _safeFileName("img_" + _timestampString() + ext);
+        var fileName = "";
         var filePath;
+        var stem;
+        var extraSuffix;
 
         if (!imagesDir || !fs || !path) {
             return Promise.reject(new Error("Unable to resolve images directory."));
+        }
+
+        if (namingOptions) {
+            fileName = _buildMediaFileName({
+                prompt: namingOptions.prompt || "",
+                mediaType: "image",
+                mode: namingOptions.mode || "image",
+                aspectRatio: namingOptions.aspectRatio || "",
+                sampleIndex: namingOptions.sampleIndex || 1,
+                sampleCount: namingOptions.sampleCount || 1,
+                modelId: namingOptions.modelId || ""
+            }, ext);
+        }
+
+        if (!fileName) {
+            fileName = _safeFileName("img_" + _timestampString() + ext);
         }
 
         _ensureDirRecursive(imagesDir);
         filePath = path.join(imagesDir, fileName);
 
         if (fs.existsSync(filePath)) {
-            filePath = path.join(imagesDir, _safeFileName("img_" + _timestampString() + "_" + String(Math.floor(Math.random() * 10000)) + ext));
+            stem = fileName.replace(/\.[^\.]+$/, "");
+            extraSuffix = "_" + String(new Date().getTime()).slice(-6) + String(Math.floor(Math.random() * 1000));
+            filePath = path.join(imagesDir, _safeFileName(stem + extraSuffix + ext));
         }
 
         fs.writeFileSync(filePath, _bufferFromBase64(base64Data));
         return Promise.resolve(filePath);
     }
 
-    function _downloadToVideosDir(videoUri, apiKey, preferredVideosDir) {
+    function _downloadToVideosDir(videoUri, apiKey, preferredVideosDir, namingOptions) {
         var videosDir = preferredVideosDir || _resolveVideosDir();
         var baseName;
         var finalName;
         var finalPath;
         var responseHeaders = {};
+        var stem;
+        var extraSuffix;
 
         if (!videosDir || !fs || !path) {
             return Promise.reject(new Error("Unable to resolve videos directory."));
@@ -883,17 +1240,33 @@
 
         _ensureDirRecursive(videosDir);
 
-        baseName = _basenameFromUrl(videoUri) || ("veo_" + _timestampString() + ".mp4");
-        baseName = _safeFileName(baseName);
-        if (!/\.mp4$/i.test(baseName)) {
-            baseName += ".mp4";
+        if (namingOptions) {
+            baseName = _buildMediaFileName({
+                prompt: namingOptions.prompt || "",
+                mediaType: "video",
+                mode: namingOptions.mode || "text",
+                aspectRatio: namingOptions.aspectRatio || "",
+                sampleIndex: namingOptions.sampleIndex || 1,
+                sampleCount: namingOptions.sampleCount || 1,
+                modelId: namingOptions.modelId || ""
+            }, ".mp4");
+        }
+
+        if (!baseName) {
+            baseName = _basenameFromUrl(videoUri) || ("veo_" + _timestampString() + ".mp4");
+            baseName = _safeFileName(baseName);
+            if (!/\.mp4$/i.test(baseName)) {
+                baseName += ".mp4";
+            }
         }
 
         finalName = baseName;
         finalPath = path.join(videosDir, finalName);
 
         if (fs.existsSync(finalPath)) {
-            finalName = baseName.replace(/\.mp4$/i, "") + "_" + _timestampString() + ".mp4";
+            stem = baseName.replace(/\.mp4$/i, "");
+            extraSuffix = "_" + String(new Date().getTime()).slice(-6) + String(Math.floor(Math.random() * 1000));
+            finalName = _safeFileName(stem + extraSuffix + ".mp4");
             finalPath = path.join(videosDir, finalName);
         }
 
@@ -1111,7 +1484,14 @@
                 emitStatus("Downloading", {
                     progressPercent: 96
                 });
-                return _downloadToVideosDir(videoUri, apiKey, preferredVideosDir).then(function (downloadedPath) {
+                return _downloadToVideosDir(videoUri, apiKey, preferredVideosDir, {
+                    prompt: prompt,
+                    mode: requestMode || mode,
+                    aspectRatio: aspectRatio,
+                    sampleIndex: options.sampleIndex || 1,
+                    sampleCount: options.sampleCount || 1,
+                    modelId: modelId
+                }).then(function (downloadedPath) {
                     return {
                         downloadedPath: downloadedPath,
                         videoUri: videoUri,
@@ -1560,7 +1940,14 @@
                     progressPercent: 92
                 });
 
-                return _saveGeneratedImage(imageData.data, imageData.mimeType, preferredImagesDir).then(function (savedPath) {
+                return _saveGeneratedImage(imageData.data, imageData.mimeType, preferredImagesDir, {
+                    prompt: prompt,
+                    mode: "image",
+                    aspectRatio: aspectRatio,
+                    sampleIndex: options.sampleIndex || 1,
+                    sampleCount: options.sampleCount || 1,
+                    modelId: modelId
+                }).then(function (savedPath) {
                     return {
                         downloadedPath: savedPath,
                         path: savedPath,
@@ -1603,6 +1990,10 @@
     global.VeoApi = {
         isConfigured: function (apiKey) {
             return !!(apiKey && String(apiKey).replace(/^\s+|\s+$/g, ""));
+        },
+        buildMediaFileName: function (options) {
+            var opts = options || {};
+            return _buildMediaFileName(opts, opts.ext || "");
         },
         downscaleToBase64: downscaleToBase64,
         probeVideoCapabilities: probeVideoCapabilities,

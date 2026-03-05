@@ -520,6 +520,7 @@
         var comp = _getActiveComp();
         var paths;
         var filename;
+        var aspectToken;
         var outputPath;
         var outputFile;
         var captureAttempt;
@@ -539,7 +540,16 @@
             return _makeError("PATH_INIT_FAILED", "Unable to prepare VeoBridge folders on disk.");
         }
 
-        filename = _sanitizeFileName(comp.name) + "_" + _timestamp() + ".png";
+        frameIndex = Math.round(comp.time * comp.frameRate);
+        if (comp.width > comp.height) {
+            aspectToken = "Hor";
+        } else if (comp.width < comp.height) {
+            aspectToken = "Port";
+        } else {
+            aspectToken = "Rect";
+        }
+
+        filename = _sanitizeFileName(comp.name) + "__imgcap" + aspectToken + "__s1of1__f" + String(frameIndex) + "_" + _timestamp() + ".png";
         outputPath = _joinPath(paths.framesDir, filename);
         outputFile = new File(outputPath);
 
@@ -576,8 +586,6 @@
                 details: captureAttempt && captureAttempt.details ? captureAttempt.details : "Output file missing after capture."
             });
         }
-
-        frameIndex = Math.round(comp.time * comp.frameRate);
 
         return _makeResult(true, {
             path: outputFile.fsName,
@@ -746,6 +754,217 @@
         return _makeResult(true, {
             itemId: importedItem.id,
             itemName: importedItem.name,
+            path: file.fsName,
+            projectFolder: "VeoBridge/Generated"
+        });
+    };
+
+    $.global.VeoBridge_importVideoToActiveComp = function (path) {
+        var comp;
+        var normalizedPath;
+        var file;
+        var folderProbe;
+        var newestMp4InFolder;
+        var importOptions;
+        var importedItem;
+        var projectFolders;
+        var precomp;
+        var precompName;
+        var width;
+        var height;
+        var pixelAspect;
+        var duration;
+        var frameRate;
+        var compLayer;
+        var footageLayer;
+
+        if (!app || !app.project) {
+            return _makeError("NO_PROJECT", "After Effects project is not available.");
+        }
+
+        comp = _getActiveComp();
+        if (!comp) {
+            return _makeError("NO_ACTIVE_COMP", "Active composition is required.");
+        }
+
+        if (typeof path !== "string" || _safeTrim(path) === "") {
+            return _makeError("INVALID_PATH", "Video path is required.");
+        }
+
+        normalizedPath = _normalizeIncomingPath(path);
+        file = new File(normalizedPath);
+        folderProbe = new Folder(normalizedPath);
+
+        if (file.exists && _isMp4Path(file.fsName)) {
+            // Keep file as-is.
+        } else if (folderProbe.exists) {
+            newestMp4InFolder = _findNewestMp4InFolder(folderProbe.fsName);
+            if (!newestMp4InFolder) {
+                return _makeError("INVALID_FILE", "Expected a file path, but received a folder path without .mp4 files.", {
+                    path: folderProbe.fsName
+                });
+            }
+            file = newestMp4InFolder;
+        } else if (_isMp4Path(normalizedPath) && !file.exists) {
+            return _makeError("FILE_NOT_FOUND", "Video file not found.", {
+                path: normalizedPath
+            });
+        } else if (!_isMp4Path(normalizedPath)) {
+            return _makeError("INVALID_EXTENSION", "Only .mp4 files are supported.", {
+                path: normalizedPath
+            });
+        } else {
+            return _makeError("INVALID_PATH", "Unable to resolve import path as file or folder.", {
+                path: normalizedPath
+            });
+        }
+
+        projectFolders = _ensureProjectFolders();
+        if (!projectFolders || !projectFolders.generatedFolder) {
+            return _makeError("PROJECT_FOLDER_FAILED", "Unable to prepare VeoBridge/Generated folder in Project panel.");
+        }
+
+        app.beginUndoGroup("VeoBridge Import Video To Active Comp");
+        try {
+            importOptions = new ImportOptions(file);
+            importedItem = app.project.importFile(importOptions);
+            if (!importedItem) {
+                app.endUndoGroup();
+                return _makeError("IMPORT_FAILED", "After Effects did not return an imported item.");
+            }
+
+            importedItem.parentFolder = projectFolders.generatedFolder;
+
+            width = importedItem.width || comp.width || 1920;
+            height = importedItem.height || comp.height || 1080;
+            pixelAspect = importedItem.pixelAspect || 1;
+            duration = importedItem.duration || comp.duration || 8;
+            frameRate = importedItem.frameRate || comp.frameRate || 30;
+
+            if (!(duration > 0)) {
+                duration = comp.duration || 8;
+            }
+            if (!(frameRate > 0)) {
+                frameRate = comp.frameRate || 30;
+            }
+
+            precompName = importedItem.name || "VeoVideo";
+            precompName = precompName.replace(/\.[^\.]+$/, "");
+            precompName = _sanitizeFileName(precompName) + "_Precomp";
+            precomp = app.project.items.addComp(precompName, width, height, pixelAspect, duration, frameRate);
+            precomp.parentFolder = projectFolders.generatedFolder;
+
+            footageLayer = precomp.layers.add(importedItem);
+            if (footageLayer) {
+                footageLayer.startTime = 0;
+            }
+
+            compLayer = comp.layers.add(precomp);
+            if (compLayer) {
+                compLayer.startTime = comp.time;
+            }
+        } catch (error) {
+            app.endUndoGroup();
+            return _makeError("IMPORT_TO_COMP_FAILED", "Failed to import video into active composition.", {
+                details: String(error)
+            });
+        }
+        app.endUndoGroup();
+
+        return _makeResult(true, {
+            itemId: importedItem.id,
+            itemName: importedItem.name,
+            precompId: precomp ? precomp.id : null,
+            precompName: precomp ? precomp.name : null,
+            activeCompName: comp.name,
+            path: file.fsName,
+            projectFolder: "VeoBridge/Generated"
+        });
+    };
+
+    $.global.VeoBridge_importImageToActiveComp = function (path) {
+        var comp;
+        var normalizedPath;
+        var file;
+        var folderProbe;
+        var newestImageInFolder;
+        var importOptions;
+        var importedItem;
+        var projectFolders;
+        var layer;
+
+        if (!app || !app.project) {
+            return _makeError("NO_PROJECT", "After Effects project is not available.");
+        }
+
+        comp = _getActiveComp();
+        if (!comp) {
+            return _makeError("NO_ACTIVE_COMP", "Active composition is required.");
+        }
+
+        if (typeof path !== "string" || _safeTrim(path) === "") {
+            return _makeError("INVALID_PATH", "Image path is required.");
+        }
+
+        normalizedPath = _normalizeIncomingPath(path);
+        file = new File(normalizedPath);
+        folderProbe = new Folder(normalizedPath);
+
+        if (file.exists && _isImagePath(file.fsName)) {
+            // Keep file as-is.
+        } else if (folderProbe.exists) {
+            newestImageInFolder = _findNewestImageInFolder(folderProbe.fsName);
+            if (!newestImageInFolder) {
+                return _makeError("INVALID_FILE", "Expected an image file path, but received a folder path without supported images.", {
+                    path: folderProbe.fsName
+                });
+            }
+            file = newestImageInFolder;
+        } else if (_isImagePath(normalizedPath) && !file.exists) {
+            return _makeError("FILE_NOT_FOUND", "Image file not found.", {
+                path: normalizedPath
+            });
+        } else if (!_isImagePath(normalizedPath)) {
+            return _makeError("INVALID_EXTENSION", "Only .png, .jpg, .jpeg, .webp files are supported.", {
+                path: normalizedPath
+            });
+        } else {
+            return _makeError("INVALID_PATH", "Unable to resolve import path as file or folder.", {
+                path: normalizedPath
+            });
+        }
+
+        projectFolders = _ensureProjectFolders();
+        if (!projectFolders || !projectFolders.generatedFolder) {
+            return _makeError("PROJECT_FOLDER_FAILED", "Unable to prepare VeoBridge/Generated folder in Project panel.");
+        }
+
+        app.beginUndoGroup("VeoBridge Import Image To Active Comp");
+        try {
+            importOptions = new ImportOptions(file);
+            importedItem = app.project.importFile(importOptions);
+            if (!importedItem) {
+                app.endUndoGroup();
+                return _makeError("IMPORT_FAILED", "After Effects did not return an imported item.");
+            }
+
+            importedItem.parentFolder = projectFolders.generatedFolder;
+            layer = comp.layers.add(importedItem);
+            if (layer) {
+                layer.startTime = comp.time;
+            }
+        } catch (error) {
+            app.endUndoGroup();
+            return _makeError("IMPORT_TO_COMP_FAILED", "Failed to import image into active composition.", {
+                details: String(error)
+            });
+        }
+        app.endUndoGroup();
+
+        return _makeResult(true, {
+            itemId: importedItem.id,
+            itemName: importedItem.name,
+            activeCompName: comp.name,
             path: file.fsName,
             projectFolder: "VeoBridge/Generated"
         });

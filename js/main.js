@@ -5,6 +5,8 @@
     var cs = null;
     var isCapturing = false;
     var galleryWindowRef = null;
+    var isGalleryOpening = false;
+    var galleryOpeningTimer = null;
 
     function getById(id) {
         return document.getElementById(id);
@@ -45,22 +47,6 @@
         }
     }
 
-    function getHostMajorVersion() {
-        var env = readHostEnvironment();
-        var version = "";
-        var major = 0;
-
-        if (env && env.appVersion) {
-            version = String(env.appVersion);
-            major = parseInt(version.split(".")[0], 10);
-            if (isFinite(major) && major > 0) {
-                return major;
-            }
-        }
-
-        return 0;
-    }
-
     function isMacHost() {
         var env = readHostEnvironment();
         var appName = "";
@@ -81,6 +67,32 @@
             return true;
         }
         return navPlatform.indexOf("mac") >= 0;
+    }
+
+    function beginGalleryOpenAttempt() {
+        if (isGalleryOpening) {
+            return false;
+        }
+        isGalleryOpening = true;
+        if (galleryOpeningTimer && typeof window.clearTimeout === "function") {
+            window.clearTimeout(galleryOpeningTimer);
+            galleryOpeningTimer = null;
+        }
+        if (typeof window.setTimeout === "function") {
+            galleryOpeningTimer = window.setTimeout(function () {
+                isGalleryOpening = false;
+                galleryOpeningTimer = null;
+            }, 800);
+        }
+        return true;
+    }
+
+    function endGalleryOpenAttempt() {
+        isGalleryOpening = false;
+        if (galleryOpeningTimer && typeof window.clearTimeout === "function") {
+            window.clearTimeout(galleryOpeningTimer);
+            galleryOpeningTimer = null;
+        }
     }
 
     function parseHostResult(raw) {
@@ -210,6 +222,12 @@
         var galleryHeight = 820;
         var settings;
         var features;
+        var macHost = isMacHost();
+
+        if (!beginGalleryOpenAttempt()) {
+            setStatus("Opening Gallery...", false);
+            return;
+        }
 
         if (window.VeoBridgeSettings && typeof window.VeoBridgeSettings.loadSettings === "function") {
             try {
@@ -248,11 +266,35 @@
             } catch (existingPopupError) {
                 // ignore and continue
             }
+            endGalleryOpenAttempt();
             setStatus("Gallery opened.", false);
             return;
         }
 
-        // Compatibility-first path for older CEP builds (AE 2020): open popup directly.
+        // macOS path: keep requestOpenExtension + second ping for reliable single-click open.
+        if (macHost && bridge && typeof bridge.requestOpenExtension === "function") {
+            try {
+                bridge.requestOpenExtension("com.veobridge.gallery", "");
+                opened = true;
+                window.setTimeout(function () {
+                    try {
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryError) {
+                        // ignore
+                    }
+                }, 120);
+            } catch (requestOpenError) {
+                opened = false;
+            }
+        }
+
+        if (opened) {
+            endGalleryOpenAttempt();
+            setStatus("Gallery opened.", false);
+            return;
+        }
+
+        // Windows path (and mac fallback): open popup directly to avoid modeless white-window issues.
         try {
             popup = window.open("gallery.html", "VeoBridgeGallery", features);
             opened = !!popup;
@@ -286,33 +328,12 @@
             } catch (resizeError) {
                 // ignore
             }
+            endGalleryOpenAttempt();
             setStatus("Gallery opened.", false);
             return;
         }
 
-        // Fallback: open modeless extension window if popup creation is blocked.
-        if (bridge && typeof bridge.requestOpenExtension === "function") {
-            try {
-                bridge.requestOpenExtension("com.veobridge.gallery", "");
-                opened = true;
-                if (isMacHost() || getHostMajorVersion() >= 25) {
-                    window.setTimeout(function () {
-                        try {
-                            bridge.requestOpenExtension("com.veobridge.gallery", "");
-                        } catch (retryError) {
-                            // ignore
-                        }
-                    }, 120);
-                }
-            } catch (requestOpenError) {
-                opened = false;
-            }
-        }
-
-        if (opened) {
-            setStatus("Gallery opened.", false);
-            return;
-        }
+        endGalleryOpenAttempt();
         setStatus("Failed to open Gallery window.", true);
     }
 

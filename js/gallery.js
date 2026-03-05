@@ -42,7 +42,10 @@
     var windowSizePollTimer = null;
     var pendingVideoResumeTimer = null;
     var pendingJobsLeaseHeartbeatTimer = null;
+    var pendingJobsStaleTimer = null;
+    var pendingVideoInjectedJobIds = [];
     var pendingImageQueue = [];
+    var undoDeleteStack = [];
     var lastKnownWindowWidth = 0;
     var lastKnownWindowHeight = 0;
     var pendingJobsRunnerId = "runner_" + String(new Date().getTime()) + "_" + String(Math.floor(Math.random() * 1000000));
@@ -76,11 +79,18 @@
     var PENDING_JOBS_LEASE_TTL_MS = 9000;
     var PENDING_JOBS_LEASE_HEARTBEAT_MS = 2500;
     var CARD_HIGH_LOAD_MESSAGE = "Generation was interrupted due to high load.";
+    var CARD_INTERRUPTED_MESSAGE = "Generation was interrupted because the app was closed before completion.";
+    var PENDING_IMAGE_JOB_STALE_MS = 25000;
+    var PENDING_VIDEO_JOB_STALE_ACTIVE_MS = 180000;
+    var PENDING_VIDEO_JOB_STALE_POLLING_MS = 1200000;
+    var PENDING_VIDEO_JOB_STALE_POLLING_WITH_OPERATION_MS = 2700000;
+    var PENDING_JOBS_STALE_SCAN_MS = 5000;
     var smoothProgressByJobId = {};
     var smoothProgressTimer = null;
     var SMOOTH_PROGRESS_SLOWDOWN_MULTIPLIER = 4;
     var SMOOTH_PROGRESS_TICK_MS = 40 * SMOOTH_PROGRESS_SLOWDOWN_MULTIPLIER;
     var SMOOTH_PROGRESS_SYNTH_MAX_PERCENT = 90;
+    var UNDO_DELETE_STACK_LIMIT = 10;
 
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
@@ -1118,6 +1128,72 @@
         return window.VeoBridgeState.getState();
     }
 
+    function cloneJson(value, fallback) {
+        try {
+            return JSON.parse(JSON.stringify(value));
+        } catch (error) {
+            return typeof fallback === "undefined" ? null : fallback;
+        }
+    }
+
+    function buildUndoDeleteSnapshot(state) {
+        var source = state || getState();
+        return {
+            shots: cloneJson(source.shots || [], []),
+            selectedShotId: source.selectedShotId || null,
+            startShotId: source.startShotId || null,
+            endShotId: source.endShotId || null,
+            refs: cloneJson(source.refs || [], []),
+            videoRefs: cloneJson(getVideoRefs(source) || [], []),
+            videos: cloneJson(source.videos || [], []),
+            selectedVideoId: source.selectedVideoId || null,
+            images: cloneJson(source.images || [], []),
+            selectedImageId: source.selectedImageId || null
+        };
+    }
+
+    function updateUndoDeleteButtonState() {
+        var btn = getById("btnUndoDelete");
+        if (!btn) {
+            return;
+        }
+        btn.disabled = undoDeleteStack.length < 1;
+        btn.title = undoDeleteStack.length < 1 ? "Nothing to undo" : "Undo last delete";
+    }
+
+    function pushUndoDeleteAction(label, snapshot) {
+        var normalizedLabel = trimText(label || "Delete");
+        var normalizedSnapshot = cloneJson(snapshot, null);
+        if (!normalizedSnapshot) {
+            return;
+        }
+        undoDeleteStack.push({
+            label: normalizedLabel,
+            snapshot: normalizedSnapshot
+        });
+        if (undoDeleteStack.length > UNDO_DELETE_STACK_LIMIT) {
+            undoDeleteStack = undoDeleteStack.slice(undoDeleteStack.length - UNDO_DELETE_STACK_LIMIT);
+        }
+        updateUndoDeleteButtonState();
+    }
+
+    function undoLastDeleteAction() {
+        var entry;
+        if (!undoDeleteStack.length) {
+            setStatus("Nothing to undo.", false);
+            updateUndoDeleteButtonState();
+            return;
+        }
+        entry = undoDeleteStack.pop();
+        updateUndoDeleteButtonState();
+        if (!entry || !entry.snapshot) {
+            setStatus("Undo failed: snapshot is missing.", true);
+            return;
+        }
+        window.VeoBridgeState.updateState(entry.snapshot);
+        setStatus("Undo complete: " + (entry.label || "Delete"), false);
+    }
+
     function closeFlowOptions() {
         var videoOptions = getById("videoFlowOptions");
 
@@ -1585,6 +1661,204 @@
         return isActiveVideoJob(job) || isActiveImageJob(job);
     }
 
+    function queueInjectedVideoJobIds(jobIds) {
+        var incoming = jobIds && jobIds instanceof Array ? jobIds : [];
+        var seen = {};
+        var i;
+        var id;
+        var next = [];
+
+        for (i = 0; i < pendingVideoInjectedJobIds.length; i += 1) {
+            id = trimText(pendingVideoInjectedJobIds[i] || "");
+            if (!id || seen[id]) {
+                continue;
+            }
+            seen[id] = true;
+            next.push(id);
+        }
+
+        for (i = 0; i < incoming.length; i += 1) {
+            id = trimText(incoming[i] || "");
+            if (!id || seen[id]) {
+                continue;
+            }
+            seen[id] = true;
+            next.push(id);
+        }
+
+        pendingVideoInjectedJobIds = next;
+    }
+
+    function drainInjectedVideoJobIds() {
+        var list = pendingVideoInjectedJobIds.slice(0);
+        pendingVideoInjectedJobIds = [];
+        return list;
+    }
+
+    function getPendingJobUpdatedMs(job) {
+        var updatedAtMs = toEpochMs(job && job.updatedAt ? job.updatedAt : "");
+        if (updatedAtMs > 0) {
+            return updatedAtMs;
+        }
+        return toEpochMs(job && job.createdAt ? job.createdAt : "");
+    }
+
+    function getPendingJobStaleThresholdMs(job) {
+        var status = normalizeVideoJobStatus(job && job.status);
+        if (job && job.kind === "image") {
+            return PENDING_IMAGE_JOB_STALE_MS;
+        }
+        if (status === "polling") {
+            if (job && (trimText(job.operationName) || trimText(job.operationUrl))) {
+                return PENDING_VIDEO_JOB_STALE_POLLING_WITH_OPERATION_MS;
+            }
+            return PENDING_VIDEO_JOB_STALE_POLLING_MS;
+        }
+        return PENDING_VIDEO_JOB_STALE_ACTIVE_MS;
+    }
+
+    function markStalePendingJobs(options) {
+        var opts = options || {};
+        var state = opts.state || getState();
+        var lease = getPendingJobsLease(state);
+        var jobs = getPendingJobs(state);
+        var nextJobs;
+        var nowMs = new Date().getTime();
+        var staleMap = {};
+        var staleCount = 0;
+        var hasStaleCandidates = false;
+        var changed = false;
+        var i;
+        var item;
+        var itemUpdatedAtMs;
+        var staleThresholdMs;
+
+        if (isVideoGenerating || isImageGenerating || isResumingPendingJobs) {
+            return {
+                changed: false,
+                count: 0
+            };
+        }
+
+        if (isPendingJobsLeaseActive(lease) && !isPendingJobsLeaseOwnedByCurrentWindow(lease)) {
+            return {
+                changed: false,
+                count: 0
+            };
+        }
+
+        for (i = 0; i < jobs.length; i += 1) {
+            item = jobs[i];
+            if (!item || !item.id || !isActivePendingJob(item)) {
+                continue;
+            }
+            itemUpdatedAtMs = getPendingJobUpdatedMs(item);
+            staleThresholdMs = getPendingJobStaleThresholdMs(item);
+            if (!isFinite(itemUpdatedAtMs) || itemUpdatedAtMs <= 0) {
+                staleMap[item.id] = true;
+                hasStaleCandidates = true;
+                continue;
+            }
+            if (!isFinite(staleThresholdMs) || staleThresholdMs < 1000) {
+                staleThresholdMs = 1000;
+            }
+            if ((nowMs - itemUpdatedAtMs) >= staleThresholdMs) {
+                staleMap[item.id] = true;
+                hasStaleCandidates = true;
+            }
+        }
+
+        if (!hasStaleCandidates) {
+            return {
+                changed: false,
+                count: 0
+            };
+        }
+
+        nextJobs = jobs.slice(0);
+        for (i = 0; i < nextJobs.length; i += 1) {
+            item = nextJobs[i];
+            if (!item || !item.id || !staleMap[item.id]) {
+                continue;
+            }
+            if (!isActivePendingJob(item)) {
+                continue;
+            }
+            nextJobs[i] = {
+                id: item.id,
+                kind: item.kind,
+                batchId: item.batchId,
+                status: "failed",
+                sampleIndex: item.sampleIndex,
+                sampleCount: item.sampleCount,
+                createdAt: item.createdAt,
+                updatedAt: (new Date()).toISOString(),
+                prompt: item.prompt,
+                modelId: item.modelId,
+                aspectRatio: item.aspectRatio,
+                imageSize: item.imageSize,
+                uiMode: item.uiMode,
+                apiMode: item.apiMode,
+                durationSeconds: item.durationSeconds,
+                resolution: item.resolution,
+                videosDir: item.videosDir,
+                startShotId: item.startShotId,
+                endShotId: item.endShotId,
+                startShotPath: item.startShotPath,
+                endShotPath: item.endShotPath,
+                startShotCompName: item.startShotCompName,
+                endShotCompName: item.endShotCompName,
+                startShotFrame: item.startShotFrame,
+                endShotFrame: item.endShotFrame,
+                references: item.references || [],
+                referenceIds: item.referenceIds || [],
+                operationName: item.operationName,
+                operationUrl: item.operationUrl,
+                requestMode: item.requestMode,
+                fallbackReason: item.fallbackReason,
+                downloadedPath: item.downloadedPath,
+                progressPercent: 0,
+                lastStage: "Interrupted",
+                error: CARD_INTERRUPTED_MESSAGE
+            };
+            staleCount += 1;
+            changed = true;
+        }
+
+        if (changed) {
+            window.VeoBridgeState.updateState({
+                pendingJobs: trimPendingJobs(nextJobs)
+            });
+        }
+
+        if (staleCount > 0 && opts.notify !== false) {
+            setStatus("Detected interrupted jobs. Marked " + staleCount + " pending item(s) as failed.", true);
+        }
+
+        return {
+            changed: changed,
+            count: staleCount
+        };
+    }
+
+    function startPendingJobsStaleWatcher() {
+        if (pendingJobsStaleTimer || typeof window.setInterval !== "function") {
+            return;
+        }
+        pendingJobsStaleTimer = window.setInterval(function () {
+            markStalePendingJobs({
+                notify: true
+            });
+        }, PENDING_JOBS_STALE_SCAN_MS);
+    }
+
+    function stopPendingJobsStaleWatcher() {
+        if (pendingJobsStaleTimer && typeof window.clearInterval === "function") {
+            window.clearInterval(pendingJobsStaleTimer);
+            pendingJobsStaleTimer = null;
+        }
+    }
+
     function mapVideoStageToJobStatus(stage) {
         var text = trimText(stage).toLowerCase();
         if (text.indexOf("poll") === 0) {
@@ -1762,6 +2036,7 @@
         var captureBtn;
         var frameDir;
         var framePath;
+        var fileName;
         var nowIso;
         var frameTime;
         var canvas;
@@ -1845,10 +2120,28 @@
             return;
         }
 
-        framePath = path.join(
-            frameDir,
-            sanitizeFileStem(fileBaseNameWithoutExt(videoRecord.path)) + "_frame_" + String(new Date().getTime()) + ".png"
-        );
+        fileName = "";
+        if (window.VeoApi && typeof window.VeoApi.buildMediaFileName === "function") {
+            try {
+                fileName = window.VeoApi.buildMediaFileName({
+                    prompt: videoRecord.prompt || fileBaseNameWithoutExt(videoRecord.path),
+                    mediaType: "image",
+                    mode: "frame",
+                    aspectRatio: videoRecord.aspectRatio || "16:9",
+                    sampleIndex: videoRecord.sampleIndex || 1,
+                    sampleCount: videoRecord.sampleCount || 1,
+                    modelId: videoRecord.model || "",
+                    ext: ".png"
+                });
+            } catch (nameError) {
+                fileName = "";
+            }
+        }
+        if (!fileName) {
+            fileName = sanitizeFileStem(fileBaseNameWithoutExt(videoRecord.path)) + "_frame_" + String(new Date().getTime()) + ".png";
+        }
+
+        framePath = path.join(frameDir, fileName);
 
         canvas = document.createElement("canvas");
         canvas.width = videoEl.videoWidth;
@@ -2062,7 +2355,7 @@
 
         deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
-        deleteBtn.className = "shot-card-action-btn";
+        deleteBtn.className = "shot-card-action-btn is-danger";
         deleteBtn.textContent = "Delete";
         deleteBtn.title = "Delete frame";
         deleteBtn.addEventListener("click", function (event) {
@@ -2353,6 +2646,9 @@
     function getVideoJobStateLabel(status, lastStage) {
         var normalized = normalizeVideoJobStatus(status);
         if (normalized === "failed") {
+            if (trimText(lastStage).toLowerCase() === "interrupted") {
+                return "Interrupted";
+            }
             return "Error";
         }
         if (normalized === "cancelled") {
@@ -2456,9 +2752,19 @@
                 imageSize: "",
                 sampleCount: 1,
                 refsCount: 0,
+                sourceMode: kind === "video" ? VIDEO_MODE_FRAMES : "image",
+                startShotId: null,
+                endShotId: null,
+                startShotPath: "",
+                endShotPath: "",
+                referenceIds: [],
+                referencePaths: [],
                 createdAt: createdIso || "",
                 timeMs: toEpochMs(createdIso || ""),
                 items: [],
+                pendingJobsCount: 0,
+                activePendingJobsCount: 0,
+                hasPendingJobs: false,
                 stateClass: "done",
                 stateLabel: "Done",
                 error: ""
@@ -2521,7 +2827,9 @@
                     videoJobError = CARD_HIGH_LOAD_MESSAGE;
                 }
                 if (videoJobStateClass === "error") {
-                    videoJobLabel = "Error";
+                    if (!videoJobLabel) {
+                        videoJobLabel = "Error";
+                    }
                 } else if (videoJobStateClass === "generating" && videoProgress !== null && videoProgress >= 1 && videoProgress <= 99) {
                     videoJobLabel = String(videoProgress) + "%";
                 }
@@ -2533,8 +2841,35 @@
                 group.modeLabel = requestModeLabel(item.apiMode || item.uiMode || "");
                 group.aspectRatio = group.aspectRatio || normalizeAspectRatio(item.aspectRatio || "16:9");
                 group.sampleCount = item.sampleCount || group.sampleCount || 1;
+                group.sourceMode = normalizeVideoMode(item.uiMode || (item.apiMode === "reference" ? VIDEO_MODE_REFERENCE : VIDEO_MODE_FRAMES));
+                if (!group.startShotId && item.startShotId) {
+                    group.startShotId = item.startShotId;
+                }
+                if (!group.endShotId && item.endShotId) {
+                    group.endShotId = item.endShotId;
+                }
+                if (!group.startShotPath && item.startShotPath) {
+                    group.startShotPath = item.startShotPath;
+                }
+                if (!group.endShotPath && item.endShotPath) {
+                    group.endShotPath = item.endShotPath;
+                }
                 if (item.referenceIds && item.referenceIds instanceof Array) {
                     group.refsCount = item.referenceIds.length;
+                    if (!group.referenceIds.length) {
+                        group.referenceIds = item.referenceIds.slice(0);
+                    }
+                }
+                if (item.references && item.references instanceof Array && !group.referencePaths.length) {
+                    for (j = 0; j < item.references.length; j += 1) {
+                        if (item.references[j] && item.references[j].path) {
+                            group.referencePaths.push(item.references[j].path);
+                        }
+                    }
+                }
+                group.pendingJobsCount += 1;
+                if (ACTIVE_VIDEO_JOB_STATUSES[normalizeVideoJobStatus(item.status)]) {
+                    group.activePendingJobsCount += 1;
                 }
 
                 createdAt = item.updatedAt || item.createdAt || "";
@@ -2576,7 +2911,9 @@
                 imageJobError = CARD_HIGH_LOAD_MESSAGE;
             }
             if (imageJobStateClass === "error") {
-                imageJobLabel = "Error";
+                if (!imageJobLabel) {
+                    imageJobLabel = "Error";
+                }
             } else if (imageJobStateClass === "generating" && imageProgress !== null && imageProgress >= 1 && imageProgress <= 99) {
                 imageJobLabel = String(imageProgress) + "%";
             }
@@ -2589,6 +2926,18 @@
             group.aspectRatio = group.aspectRatio || normalizeImageAspectRatio(item.aspectRatio || "1:1");
             group.imageSize = group.imageSize || normalizeImageSize(item.imageSize || "1K");
             group.sampleCount = item.sampleCount || group.sampleCount || 1;
+            group.sourceMode = "image";
+            if (item.references && item.references instanceof Array && !group.referencePaths.length) {
+                for (j = 0; j < item.references.length; j += 1) {
+                    if (item.references[j] && item.references[j].path) {
+                        group.referencePaths.push(item.references[j].path);
+                    }
+                }
+            }
+            group.pendingJobsCount += 1;
+            if (ACTIVE_VIDEO_JOB_STATUSES[normalizeVideoJobStatus(item.status)]) {
+                group.activePendingJobsCount += 1;
+            }
 
             createdAt = item.updatedAt || item.createdAt || "";
             group.items.push({
@@ -2619,8 +2968,31 @@
             group.modeLabel = requestModeLabel(item.requestMode || item.mode || "");
             group.aspectRatio = group.aspectRatio || normalizeAspectRatio(item.aspectRatio || "16:9");
             group.sampleCount = item.sampleCount || group.sampleCount || 1;
+            group.sourceMode = normalizeVideoMode(item.mode || (item.requestMode === "reference" ? VIDEO_MODE_REFERENCE : VIDEO_MODE_FRAMES));
+            if (!group.startShotId && item.startShotId) {
+                group.startShotId = item.startShotId;
+            }
+            if (!group.endShotId && item.endShotId) {
+                group.endShotId = item.endShotId;
+            }
+            if (!group.startShotPath && item.startShotPath) {
+                group.startShotPath = item.startShotPath;
+            }
+            if (!group.endShotPath && item.endShotPath) {
+                group.endShotPath = item.endShotPath;
+            }
             if (item.refIds && item.refIds instanceof Array) {
                 group.refsCount = item.refIds.length;
+                if (!group.referenceIds.length) {
+                    group.referenceIds = item.refIds.slice(0);
+                }
+            }
+            if (item.refPaths && item.refPaths instanceof Array && !group.referencePaths.length) {
+                for (j = 0; j < item.refPaths.length; j += 1) {
+                    if (item.refPaths[j]) {
+                        group.referencePaths.push(item.refPaths[j]);
+                    }
+                }
             }
 
             isMissing = item.path ? !fileExists(item.path) : true;
@@ -2650,6 +3022,20 @@
             group.aspectRatio = group.aspectRatio || normalizeImageAspectRatio(item.aspectRatio || "1:1");
             group.imageSize = group.imageSize || normalizeImageSize(item.imageSize || "1K");
             group.sampleCount = item.sampleCount || group.sampleCount || 1;
+            group.sourceMode = "image";
+            if (item.refIds && item.refIds instanceof Array) {
+                group.refsCount = item.refIds.length;
+                if (!group.referenceIds.length) {
+                    group.referenceIds = item.refIds.slice(0);
+                }
+            }
+            if (item.refPaths && item.refPaths instanceof Array && !group.referencePaths.length) {
+                for (j = 0; j < item.refPaths.length; j += 1) {
+                    if (item.refPaths[j]) {
+                        group.referencePaths.push(item.refPaths[j]);
+                    }
+                }
+            }
 
             isMissing = item.path ? !fileExists(item.path) : true;
             group.items.push({
@@ -2750,6 +3136,7 @@
 
             group.items = filledItems;
             group.sampleCount = expectedCount;
+            group.hasPendingJobs = group.pendingJobsCount > 0;
         }
 
         cleanupSmoothProgressJobs(activeProgressJobIds);
@@ -2764,6 +3151,244 @@
         });
 
         return groups;
+    }
+
+    function findShotByPath(shots, targetPath) {
+        var normalizedTarget = normalizePathForCompare(targetPath);
+        var i;
+        if (!normalizedTarget) {
+            return null;
+        }
+        for (i = 0; i < shots.length; i += 1) {
+            if (normalizePathForCompare(shots[i] && shots[i].path) === normalizedTarget) {
+                return shots[i];
+            }
+        }
+        return null;
+    }
+
+    function setSelectValueIfExists(selectEl, value) {
+        var i;
+        var target = String(value || "");
+        if (!selectEl || !selectEl.options) {
+            return false;
+        }
+        for (i = 0; i < selectEl.options.length; i += 1) {
+            if (String(selectEl.options[i].value) === target) {
+                selectEl.value = target;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function clampSampleCountValue(value) {
+        var num = parseInt(value, 10);
+        if (!isFinite(num) || num < 1) {
+            num = 1;
+        }
+        if (num > 4) {
+            num = 4;
+        }
+        return num;
+    }
+
+    function buildRefEntriesFromGroup(group, state, limit) {
+        var refs = [];
+        var taken = {};
+        var shots = state.shots || [];
+        var i;
+        var pathValue;
+        var shot;
+        var key;
+
+        function pushShotRef(shotRecord) {
+            var entryPath;
+            var entryName;
+            var normKey;
+            if (!shotRecord || !shotRecord.path) {
+                return;
+            }
+            entryPath = shotRecord.path;
+            normKey = normalizePathForCompare(entryPath);
+            if (!normKey || taken[normKey]) {
+                return;
+            }
+            entryName = (shotRecord.compName || baseName(shotRecord.path) || "Frame") +
+                " | frame " + (shotRecord.frame != null ? shotRecord.frame : "-");
+            refs.push({
+                id: shotRecord.id || makeId("ref"),
+                path: shotRecord.path,
+                name: entryName,
+                mimeType: guessImageMimeType(shotRecord.path),
+                createdAt: (new Date()).toISOString()
+            });
+            taken[normKey] = true;
+        }
+
+        function pushPathRef(rawPath) {
+            var normalizedPath = trimText(rawPath || "");
+            var normKey;
+            if (!normalizedPath || !isSupportedImagePath(normalizedPath) || !fileExists(normalizedPath)) {
+                return;
+            }
+            normKey = normalizePathForCompare(normalizedPath);
+            if (!normKey || taken[normKey]) {
+                return;
+            }
+            refs.push({
+                id: makeId("ref"),
+                path: normalizedPath,
+                name: baseName(normalizedPath),
+                mimeType: guessImageMimeType(normalizedPath),
+                createdAt: (new Date()).toISOString()
+            });
+            taken[normKey] = true;
+        }
+
+        for (i = 0; i < group.referenceIds.length && refs.length < limit; i += 1) {
+            shot = findShotById(shots, group.referenceIds[i]);
+            pushShotRef(shot);
+        }
+        for (i = 0; i < group.referencePaths.length && refs.length < limit; i += 1) {
+            pathValue = group.referencePaths[i];
+            shot = findShotByPath(shots, pathValue);
+            if (shot) {
+                pushShotRef(shot);
+                continue;
+            }
+            pushPathRef(pathValue);
+        }
+
+        key = normalizePathForCompare(group.startShotPath || "");
+        if (key && refs.length < limit && !taken[key]) {
+            shot = findShotByPath(shots, group.startShotPath);
+            if (shot) {
+                pushShotRef(shot);
+            }
+        }
+
+        return refs.slice(0, limit);
+    }
+
+    function applyGroupToComposer(group) {
+        var state = getState();
+        var promptInput = getById("promptInput");
+        var imagePromptInput = getById("imagePromptInput");
+        var sampleCountSelect = getById("sampleCountSelect");
+        var imageSampleCountSelect = getById("imageSampleCountSelect");
+        var modelSelect = getById("modelSelect");
+        var imageModelSelect = getById("imageModelSelect");
+        var aspectRatioSelect = getById("aspectRatioSelect");
+        var imageAspectRatioSelect = getById("imageAspectRatioSelect");
+        var imageSizeSelect = getById("imageSizeSelect");
+        var videoMode;
+        var startShotId = null;
+        var endShotId = null;
+        var videoRefs;
+        var imageRefs;
+        var sampleCount;
+
+        if (!group) {
+            return;
+        }
+
+        setActiveTab("video");
+
+        sampleCount = clampSampleCountValue(group.sampleCount || 1);
+        if (promptInput) {
+            promptInput.value = group.prompt || "";
+        }
+        if (imagePromptInput) {
+            imagePromptInput.value = group.prompt || "";
+        }
+        try {
+            window.localStorage.setItem(STORAGE_KEY_PROMPT, group.prompt || "");
+            window.localStorage.setItem(STORAGE_KEY_IMAGE_PROMPT, group.prompt || "");
+        } catch (storageError) {
+            // ignore
+        }
+
+        if (group.kind === "image") {
+            activeGenerationType = GEN_TYPE_IMAGE;
+            if (imageSampleCountSelect) {
+                setSelectValueIfExists(imageSampleCountSelect, String(sampleCount));
+            }
+            if (imageModelSelect && group.model) {
+                setSelectValueIfExists(imageModelSelect, group.model);
+            }
+            if (imageAspectRatioSelect && group.aspectRatio) {
+                setSelectValueIfExists(imageAspectRatioSelect, normalizeImageAspectRatio(group.aspectRatio));
+            }
+            if (imageSizeSelect && group.imageSize) {
+                setSelectValueIfExists(imageSizeSelect, normalizeImageSize(group.imageSize));
+            }
+            imageRefs = buildRefEntriesFromGroup(group, state, UI_MAX_REFERENCE_IMAGES);
+            window.VeoBridgeState.updateState({
+                startShotId: null,
+                endShotId: null,
+                videoRefs: [],
+                refs: imageRefs
+            });
+            try {
+                window.localStorage.setItem(STORAGE_KEY_GEN_TYPE, GEN_TYPE_IMAGE);
+            } catch (storageError3) {
+                // ignore
+            }
+            persistImageGenSettings();
+            setStatus("Composer loaded from image batch.", false);
+        } else {
+            activeGenerationType = GEN_TYPE_VIDEO;
+            videoMode = normalizeVideoMode(group.sourceMode || VIDEO_MODE_FRAMES);
+            if (sampleCountSelect) {
+                setSelectValueIfExists(sampleCountSelect, String(sampleCount));
+            }
+            if (modelSelect && group.model) {
+                setSelectValueIfExists(modelSelect, group.model);
+            }
+            if (aspectRatioSelect && group.aspectRatio) {
+                setSelectValueIfExists(aspectRatioSelect, normalizeAspectRatio(group.aspectRatio));
+            }
+            persistVideoGenSettings({
+                mode: videoMode,
+                model: modelSelect ? modelSelect.value : (group.model || ""),
+                aspectRatio: aspectRatioSelect ? aspectRatioSelect.value : normalizeAspectRatio(group.aspectRatio || "16:9")
+            });
+            if (videoMode === VIDEO_MODE_FRAMES) {
+                if (group.startShotId && findShotById(state.shots || [], group.startShotId)) {
+                    startShotId = group.startShotId;
+                } else if (group.startShotPath) {
+                    startShotId = (findShotByPath(state.shots || [], group.startShotPath) || {}).id || null;
+                }
+                if (group.endShotId && findShotById(state.shots || [], group.endShotId)) {
+                    endShotId = group.endShotId;
+                } else if (group.endShotPath) {
+                    endShotId = (findShotByPath(state.shots || [], group.endShotPath) || {}).id || null;
+                }
+                window.VeoBridgeState.updateState({
+                    startShotId: startShotId,
+                    endShotId: endShotId,
+                    videoRefs: []
+                });
+            } else {
+                videoRefs = buildRefEntriesFromGroup(group, state, UI_MAX_VIDEO_REFERENCE_IMAGES);
+                window.VeoBridgeState.updateState({
+                    startShotId: null,
+                    endShotId: null,
+                    videoRefs: videoRefs
+                });
+            }
+            try {
+                window.localStorage.setItem(STORAGE_KEY_VIDEO_MODE, videoMode);
+                window.localStorage.setItem(STORAGE_KEY_GEN_TYPE, GEN_TYPE_VIDEO);
+            } catch (storageError2) {
+                // ignore
+            }
+            setStatus("Composer loaded from video batch.", false);
+        }
+
+        renderVideoModeUi(getState());
+        renderFlowComposerSummary(getState());
     }
 
     function bindGroupMediaAction(btn, actionId, mediaKind, mediaId) {
@@ -2808,6 +3433,41 @@
         });
     }
 
+    function clearPendingJobsForGroup(groupKey) {
+        var normalizedKey = trimText(groupKey || "");
+        var state;
+        var jobs;
+        var next;
+        var removedCount = 0;
+        var i;
+        var item;
+        var itemBatchKey;
+        if (!normalizedKey) {
+            return 0;
+        }
+        state = getState();
+        jobs = getPendingJobs(state);
+        next = [];
+        for (i = 0; i < jobs.length; i += 1) {
+            item = jobs[i];
+            if (!item || !item.id) {
+                continue;
+            }
+            itemBatchKey = (item.kind === "image" ? "image:" : "video:") + (item.batchId || item.id);
+            if (itemBatchKey === normalizedKey) {
+                removedCount += 1;
+                continue;
+            }
+            next.push(item);
+        }
+        if (removedCount > 0) {
+            window.VeoBridgeState.updateState({
+                pendingJobs: trimPendingJobs(next)
+            });
+        }
+        return removedCount;
+    }
+
     function renderVideosList(state) {
         var list = getById("videosList");
         var groups = collectUnifiedMediaGroups(state);
@@ -2826,12 +3486,15 @@
         var mediaActions;
         var actionBtn;
         var metaWrap;
+        var metaHead;
         var titleLine;
         var subLine;
         var dateLine;
         var errorLine;
         var metaThumbs;
         var metaThumb;
+        var reuseBtn;
+        var clearPendingBtn;
         var miniThumbPath;
         var displayDate;
         var aspectClass;
@@ -2873,10 +3536,17 @@
                 group.prompt,
                 group.model,
                 group.modeLabel,
+                group.sourceMode,
                 group.aspectRatio,
                 group.imageSize,
                 group.sampleCount,
                 group.refsCount,
+                group.startShotId || "",
+                group.endShotId || "",
+                group.referenceIds.join(","),
+                group.referencePaths.join(","),
+                String(group.pendingJobsCount || 0),
+                String(group.activePendingJobsCount || 0),
                 group.items.length
             ].join("|"));
             for (j = 0; j < group.items.length; j += 1) {
@@ -3000,6 +3670,9 @@
                         actionBtn = document.createElement("button");
                         actionBtn.type = "button";
                         actionBtn.className = "video-card-action-btn";
+                        if (cardActions[a].id === "delete") {
+                            actionBtn.className += " is-danger";
+                        }
                         actionBtn.textContent = cardActions[a].text;
                         actionBtn.title = cardActions[a].title;
                         bindGroupMediaAction(actionBtn, cardActions[a].id, currentItem.kind, currentItem.id);
@@ -3049,10 +3722,58 @@
             metaWrap = document.createElement("div");
             metaWrap.className = "flow-group-meta";
 
+            metaHead = document.createElement("div");
+            metaHead.className = "flow-row-meta-head";
+
             titleLine = document.createElement("div");
             titleLine.className = "flow-row-title";
             titleLine.textContent = group.prompt || (group.kind === "video" ? "Video request" : "Image request");
-            metaWrap.appendChild(titleLine);
+            metaHead.appendChild(titleLine);
+
+            reuseBtn = document.createElement("button");
+            reuseBtn.type = "button";
+            reuseBtn.className = "flow-reuse-btn";
+            reuseBtn.textContent = "\u21BB";
+            reuseBtn.title = "Reuse this batch in composer";
+            reuseBtn.addEventListener("click", (function (groupCopy) {
+                return function (event) {
+                    if (event && typeof event.preventDefault === "function") {
+                        event.preventDefault();
+                    }
+                    if (event && typeof event.stopPropagation === "function") {
+                        event.stopPropagation();
+                    }
+                    applyGroupToComposer(groupCopy);
+                };
+            }(group)));
+            metaHead.appendChild(reuseBtn);
+
+            if (group.hasPendingJobs) {
+                clearPendingBtn = document.createElement("button");
+                clearPendingBtn.type = "button";
+                clearPendingBtn.className = "flow-clear-pending-btn is-danger";
+                clearPendingBtn.textContent = "Clear";
+                clearPendingBtn.title = "Remove pending placeholders in this batch";
+                clearPendingBtn.addEventListener("click", (function (groupKeyCopy) {
+                    return function (event) {
+                        var removed;
+                        if (event && typeof event.preventDefault === "function") {
+                            event.preventDefault();
+                        }
+                        if (event && typeof event.stopPropagation === "function") {
+                            event.stopPropagation();
+                        }
+                        removed = clearPendingJobsForGroup(groupKeyCopy);
+                        if (removed > 0) {
+                            setStatus("Removed " + removed + " pending item(s) from batch.", false);
+                            return;
+                        }
+                        setStatus("No pending placeholders to clear.", false);
+                    };
+                }(group.key)));
+                metaHead.appendChild(clearPendingBtn);
+            }
+            metaWrap.appendChild(metaHead);
 
             subLine = document.createElement("div");
             subLine.className = "flow-row-sub";
@@ -3529,7 +4250,7 @@
 
             actionBtn = document.createElement("button");
             actionBtn.type = "button";
-            actionBtn.className = "video-card-action-btn";
+            actionBtn.className = "video-card-action-btn is-danger";
             actionBtn.textContent = "Delete";
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
@@ -3589,6 +4310,7 @@
         var imageEl = getById("mediaPreviewImage");
         var metaEl = getById("mediaPreviewMeta");
         var btnImport = getById("btnMediaPreviewImport");
+        var btnImportComp = getById("btnMediaPreviewImportComp");
         var btnCapture = getById("btnMediaPreviewCapture");
         var btnToFrames = getById("btnMediaPreviewToFrames");
         var btnReveal = getById("btnMediaPreviewReveal");
@@ -3624,6 +4346,9 @@
 
         if (btnImport) {
             btnImport.hidden = false;
+        }
+        if (btnImportComp) {
+            btnImportComp.hidden = false;
         }
         if (btnCapture) {
             btnCapture.hidden = mediaPreviewKind !== "video";
@@ -4398,6 +5123,8 @@
             aspectRatio: context.aspectRatio,
             startShotId: context.startShot && context.startShot.id ? context.startShot.id : null,
             endShotId: context.endShot && context.endShot.id ? context.endShot.id : null,
+            startShotPath: context.startShot && context.startShot.path ? context.startShot.path : null,
+            endShotPath: context.endShot && context.endShot.path ? context.endShot.path : null,
             model: context.modelId,
             mode: context.mode || null,
             durationSeconds: context.durationSeconds || null,
@@ -4442,6 +5169,8 @@
             batchId: context.batchId || null,
             sampleIndex: context.sampleIndex || null,
             sampleCount: context.sampleCount || null,
+            refIds: context.referenceIds || [],
+            refPaths: context.referencePaths || [],
             width: dimensions && dimensions.width ? dimensions.width : null,
             height: dimensions && dimensions.height ? dimensions.height : null,
             status: "ready"
@@ -4621,6 +5350,34 @@
         return sortJobsForExecution(selected);
     }
 
+    function getPendingImageJobsForExecution(jobIds) {
+        var state = getState();
+        var jobs = getPendingJobs(state);
+        var idMap = {};
+        var selected = [];
+        var i;
+        var job;
+
+        if (jobIds && jobIds instanceof Array) {
+            for (i = 0; i < jobIds.length; i += 1) {
+                idMap[jobIds[i]] = true;
+            }
+        }
+
+        for (i = 0; i < jobs.length; i += 1) {
+            job = jobs[i];
+            if (!isActiveImageJob(job)) {
+                continue;
+            }
+            if (jobIds && jobIds instanceof Array && !idMap[job.id]) {
+                continue;
+            }
+            selected.push(job);
+        }
+
+        return sortJobsForExecution(selected);
+    }
+
     function buildGeneratePayloadFromVideoJob(job, apiKey) {
         var payload = {
             apiKey: apiKey,
@@ -4632,6 +5389,8 @@
             aspectRatio: normalizeAspectRatio(job.aspectRatio || "16:9"),
             durationSeconds: job.durationSeconds || 8,
             resolution: job.resolution || "720p",
+            sampleIndex: job.sampleIndex || 1,
+            sampleCount: job.sampleCount || 1,
             referenceImages: cloneReferenceEntriesForJob(job.references || []),
             videosDir: job.videosDir || "",
             allowTextOnlyFallback: false
@@ -4717,6 +5476,7 @@
         var stopOnError = runOptions.stopOnError !== false;
         var requestedConcurrency = parseInt(runOptions.concurrency, 10);
         var jobs = getPendingVideoJobsForExecution(targetIds);
+        var trackedJobIds = {};
         var total = jobs.length;
         var done = 0;
         var failed = 0;
@@ -4727,6 +5487,46 @@
         var completedCount = 0;
         var isAborting = false;
         var concurrency = requestedConcurrency;
+        var launchTimer = null;
+        var isLaunching = false;
+        var i;
+
+        function registerTrackedJobs(items) {
+            var idx;
+            var candidate;
+            for (idx = 0; idx < items.length; idx += 1) {
+                candidate = items[idx];
+                if (candidate && candidate.id) {
+                    trackedJobIds[candidate.id] = true;
+                }
+            }
+        }
+
+        function injectQueuedJobs() {
+            var injectedIds = drainInjectedVideoJobIds();
+            var injectedJobs;
+            var added = 0;
+            var idx;
+            var candidate;
+            if (!injectedIds.length) {
+                return 0;
+            }
+            injectedJobs = getPendingVideoJobsForExecution(injectedIds);
+            for (idx = 0; idx < injectedJobs.length; idx += 1) {
+                candidate = injectedJobs[idx];
+                if (!candidate || !candidate.id || trackedJobIds[candidate.id]) {
+                    continue;
+                }
+                trackedJobIds[candidate.id] = true;
+                jobs.push(candidate);
+                total += 1;
+                added += 1;
+            }
+            if (added > 0) {
+                jobs = sortJobsForExecution(jobs);
+            }
+            return added;
+        }
 
         if (!isFinite(concurrency) || concurrency < 1) {
             concurrency = Math.min(4, total || 1);
@@ -4734,9 +5534,7 @@
         if (concurrency > 4) {
             concurrency = 4;
         }
-        if (concurrency > total) {
-            concurrency = total || 1;
-        }
+        registerTrackedJobs(jobs);
 
         function setJobProgress(job, stage, details, isError) {
             var info = details || {};
@@ -4843,6 +5641,10 @@
             isResumingPendingJobs = false;
             stopPendingJobsLeaseHeartbeat();
             releasePendingJobsLease();
+            if (launchTimer && typeof window.clearInterval === "function") {
+                window.clearInterval(launchTimer);
+                launchTimer = null;
+            }
             refreshBusyUi();
             if (hasActivePendingVideoJobs(getState())) {
                 schedulePendingVideoResume(120);
@@ -4882,6 +5684,9 @@
 
         return new Promise(function (resolve, reject) {
             function maybeFinish() {
+                if (!isAborting) {
+                    injectQueuedJobs();
+                }
                 if (completedCount >= total && activeCount === 0) {
                     finishAndReset(resolve, reject);
                 }
@@ -4890,62 +5695,90 @@
             function launchNext() {
                 var job;
                 var runPromise;
+                var nextConcurrency = concurrency;
 
-                if (isAborting && activeCount === 0) {
-                    maybeFinish();
+                if (isLaunching) {
                     return;
                 }
+                isLaunching = true;
 
-                while (!isAborting && activeCount < concurrency && nextIndex < total) {
-                    job = jobs[nextIndex];
-                    nextIndex += 1;
-                    activeCount += 1;
-
-                    try {
-                        runPromise = runOne(job);
-                    } catch (syncError) {
-                        activeCount -= 1;
-                        completedCount += 1;
-                        failed += 1;
-                        firstError = firstError || syncError;
-                        if (stopOnError) {
-                            isAborting = true;
-                            markRemainingVideoJobsFailed(targetIds || [], toCardErrorMessage(syncError));
-                        }
-                        continue;
+                try {
+                    if (!isAborting) {
+                        injectQueuedJobs();
                     }
 
-                    if (!runPromise || typeof runPromise.then !== "function") {
-                        runPromise = Promise.resolve(runPromise);
+                    if (isAborting && activeCount === 0) {
+                        maybeFinish();
+                        return;
                     }
 
-                    (function (jobRef, promiseRef) {
-                        promiseRef.then(function () {
-                            done += 1;
+                    nextConcurrency = Math.min(4, total || 1);
+                    if (nextConcurrency < 1) {
+                        nextConcurrency = 1;
+                    }
+
+                    while (!isAborting && activeCount < nextConcurrency && nextIndex < total) {
+                        job = jobs[nextIndex];
+                        nextIndex += 1;
+                        activeCount += 1;
+
+                        try {
+                            runPromise = runOne(job);
+                        } catch (syncError) {
                             activeCount -= 1;
                             completedCount += 1;
-                            if (!isAborting) {
-                                launchNext();
-                            }
-                            maybeFinish();
-                        }, function (error) {
                             failed += 1;
-                            activeCount -= 1;
-                            completedCount += 1;
-                            firstError = firstError || error;
-                            if (stopOnError && !isAborting) {
+                            firstError = firstError || syncError;
+                            if (stopOnError) {
                                 isAborting = true;
-                                markRemainingVideoJobsFailed(targetIds || [], toCardErrorMessage(error));
+                                markRemainingVideoJobsFailed(targetIds || [], toCardErrorMessage(syncError));
                             }
-                            if (!isAborting) {
-                                launchNext();
-                            }
-                            maybeFinish();
-                        });
-                    }(job, runPromise));
-                }
+                            continue;
+                        }
 
-                maybeFinish();
+                        if (!runPromise || typeof runPromise.then !== "function") {
+                            runPromise = Promise.resolve(runPromise);
+                        }
+
+                        (function (jobRef, promiseRef) {
+                            promiseRef.then(function () {
+                                done += 1;
+                                activeCount -= 1;
+                                completedCount += 1;
+                                if (!isAborting) {
+                                    launchNext();
+                                }
+                                maybeFinish();
+                            }, function (error) {
+                                failed += 1;
+                                activeCount -= 1;
+                                completedCount += 1;
+                                firstError = firstError || error;
+                                if (stopOnError && !isAborting) {
+                                    isAborting = true;
+                                    markRemainingVideoJobsFailed(targetIds || [], toCardErrorMessage(error));
+                                }
+                                if (!isAborting) {
+                                    launchNext();
+                                }
+                                maybeFinish();
+                            });
+                        }(job, runPromise));
+                    }
+
+                    maybeFinish();
+                } finally {
+                    isLaunching = false;
+                }
+            }
+
+            if (typeof window.setInterval === "function") {
+                launchTimer = window.setInterval(function () {
+                    if (isAborting) {
+                        return;
+                    }
+                    launchNext();
+                }, 120);
             }
 
             launchNext();
@@ -5006,6 +5839,10 @@
     }
 
     function runImageGeneration(input, sampleIndex, sampleCount, batchId, jobId) {
+        var referenceIds = [];
+        var referencePaths = [];
+        var refsSource = input.references || [];
+        var refsIndex;
         var context = {
             apiKey: input.apiKey,
             prompt: input.prompt,
@@ -5014,8 +5851,15 @@
             imageSize: input.imageSize,
             batchId: batchId || null,
             sampleIndex: sampleIndex || null,
-            sampleCount: sampleCount || null
+            sampleCount: sampleCount || null,
+            referenceIds: referenceIds,
+            referencePaths: referencePaths
         };
+
+        for (refsIndex = 0; refsIndex < refsSource.length; refsIndex += 1) {
+            referenceIds.push(refsSource[refsIndex] && refsSource[refsIndex].id ? refsSource[refsIndex].id : null);
+            referencePaths.push(refsSource[refsIndex] && refsSource[refsIndex].path ? refsSource[refsIndex].path : "");
+        }
 
         if (jobId) {
             patchPendingJob(jobId, {
@@ -5032,6 +5876,8 @@
             modelId: input.modelId,
             aspectRatio: input.aspectRatio,
             imageSize: input.imageSize,
+            sampleIndex: sampleIndex || 1,
+            sampleCount: sampleCount || 1,
             referenceImages: input.references,
             imagesDir: input.imagesDir,
             onStatus: function (stage, details) {
@@ -5090,11 +5936,24 @@
         var nextIndex = 0;
         var activeCount = 0;
         var completedCount = 0;
-        var concurrency = Math.min(4, sampleCount);
+        var concurrency;
+
+        jobs = getPendingImageJobsForExecution(request.jobIds || []);
+        if (!jobs.length) {
+            return Promise.resolve({
+                done: 0,
+                failed: 0,
+                total: 0,
+                hasErrors: false
+            });
+        }
+        if (!isFinite(sampleCount) || sampleCount < 1) {
+            sampleCount = jobs.length;
+        }
+        concurrency = Math.min(4, jobs.length);
 
         isImageGenerating = true;
         refreshBusyUi();
-        jobs = enqueueImageGenerationJobs(input, sampleCount, batchId);
 
         function updateBatchStatus(stage, sampleIndex, isError) {
             var text = "Sample " + sampleIndex + "/" + sampleCount + ": " + stage + "... (" + done + "/" + sampleCount + " done";
@@ -5228,9 +6087,9 @@
                     jobIds.push(jobs[i].id);
                 }
                 if (isVideoGenerating || isResumingPendingJobs) {
-                    setGenerationStatus("Queued " + jobs.length + " sample(s). They will start automatically.", false);
+                    queueInjectedVideoJobIds(jobIds);
+                    setGenerationStatus("Queued " + jobs.length + " sample(s). Starting in parallel...", false);
                     setStatus("Queued video batch (" + jobs.length + " sample(s)).", false);
-                    schedulePendingVideoResume(120);
                     return null;
                 }
                 return runPendingVideoJobs({
@@ -5262,6 +6121,9 @@
         var sampleSelect = getById("imageSampleCountSelect");
         var sampleCount = parseSampleCount(sampleSelect ? sampleSelect.value : "1");
         var batchId = makeId("image_batch");
+        var jobs = [];
+        var jobIds = [];
+        var i;
 
         if (!window.VeoApi || typeof window.VeoApi.generateImage !== "function") {
             setImageGenerationStatus("VeoApi.generateImage is unavailable.", true);
@@ -5276,10 +6138,16 @@
             return;
         }
 
+        jobs = enqueueImageGenerationJobs(input, sampleCount, batchId);
+        for (i = 0; i < jobs.length; i += 1) {
+            jobIds.push(jobs[i].id);
+        }
+
         pendingImageQueue.push({
             input: input,
             sampleCount: sampleCount,
-            batchId: batchId
+            batchId: batchId,
+            jobIds: jobIds
         });
 
         if (isImageGenerating) {
@@ -5385,6 +6253,8 @@
             setStatus("Selected frame was not found in current state.", true);
             return;
         }
+
+        pushUndoDeleteAction("Frame delete", buildUndoDeleteSnapshot(state));
 
         if (nextShots.length) {
             if (preferredSelectedId && preferredSelectedId !== selectedId && findShotById(nextShots, preferredSelectedId)) {
@@ -5504,6 +6374,33 @@
         });
     }
 
+    function importSelectedVideoToActiveComp(videoIdOverride) {
+        var state = getState();
+        var selectedId = typeof videoIdOverride === "string" ? videoIdOverride : state.selectedVideoId;
+        var video = findVideoById(state.videos || [], selectedId);
+        var script;
+
+        if (!video || !video.path) {
+            setStatus("Select a generated video first.", true);
+            return;
+        }
+        if (!fileExists(video.path)) {
+            setStatus("Cannot import: video file is missing on disk.", true);
+            return;
+        }
+
+        script = "VeoBridge_importVideoToActiveComp(" + toHostStringLiteral(video.path) + ")";
+        setStatus("Importing video to active composition...", false);
+
+        callHost(script, function (error) {
+            if (error) {
+                setStatus("Import to active comp failed: " + formatError(error), true);
+                return;
+            }
+            setStatus("Done: Video added to active composition.", false);
+        });
+    }
+
     function revealSelectedVideo(videoIdOverride) {
         var state = getState();
         var selectedId = typeof videoIdOverride === "string" ? videoIdOverride : state.selectedVideoId;
@@ -5554,6 +6451,8 @@
             return;
         }
 
+        pushUndoDeleteAction("Video delete", buildUndoDeleteSnapshot(state));
+
         if (nextVideos.length) {
             if (preferredSelectedId && preferredSelectedId !== selectedId && findVideoById(nextVideos, preferredSelectedId)) {
                 nextSelected = preferredSelectedId;
@@ -5566,16 +6465,6 @@
             videos: nextVideos,
             selectedVideoId: nextSelected
         });
-
-        if (removedVideo && removedVideo.path && fs) {
-            try {
-                if (fs.existsSync(removedVideo.path)) {
-                    fs.unlinkSync(removedVideo.path);
-                }
-            } catch (error) {
-                // keep state deletion even if disk deletion fails
-            }
-        }
 
         setStatus("Video removed.", false);
     }
@@ -5604,6 +6493,33 @@
                 return;
             }
             setStatus("Done: Image imported into VeoBridge/Generated.", false);
+        });
+    }
+
+    function importSelectedImageToActiveComp(imageIdOverride) {
+        var state = getState();
+        var selectedId = typeof imageIdOverride === "string" ? imageIdOverride : state.selectedImageId;
+        var image = findImageById(state.images || [], selectedId);
+        var script;
+
+        if (!image || !image.path) {
+            setStatus("Select a generated image first.", true);
+            return;
+        }
+        if (!fileExists(image.path)) {
+            setStatus("Cannot import: image file is missing on disk.", true);
+            return;
+        }
+
+        script = "VeoBridge_importImageToActiveComp(" + toHostStringLiteral(image.path) + ")";
+        setStatus("Importing image to active composition...", false);
+
+        callHost(script, function (error) {
+            if (error) {
+                setStatus("Import to active comp failed: " + formatError(error), true);
+                return;
+            }
+            setStatus("Done: Image added to active composition.", false);
         });
     }
 
@@ -5704,6 +6620,8 @@
             return;
         }
 
+        pushUndoDeleteAction("Image delete", buildUndoDeleteSnapshot(state));
+
         if (nextImages.length) {
             if (preferredSelectedId && preferredSelectedId !== selectedId && findImageById(nextImages, preferredSelectedId)) {
                 nextSelected = preferredSelectedId;
@@ -5716,16 +6634,6 @@
             images: nextImages,
             selectedImageId: nextSelected
         });
-
-        if (removedImage && removedImage.path && fs) {
-            try {
-                if (fs.existsSync(removedImage.path)) {
-                    fs.unlinkSync(removedImage.path);
-                }
-            } catch (error) {
-                // keep state deletion even if disk deletion fails
-            }
-        }
 
         setStatus("Image removed.", false);
     }
@@ -6858,10 +7766,12 @@
         var mediaPreviewOverlay = getById("mediaPreviewOverlay");
         var btnCloseMediaPreview = getById("btnCloseMediaPreview");
         var btnMediaPreviewImport = getById("btnMediaPreviewImport");
+        var btnMediaPreviewImportComp = getById("btnMediaPreviewImportComp");
         var btnMediaPreviewCapture = getById("btnMediaPreviewCapture");
         var btnMediaPreviewToFrames = getById("btnMediaPreviewToFrames");
         var btnMediaPreviewReveal = getById("btnMediaPreviewReveal");
         var btnMediaPreviewDelete = getById("btnMediaPreviewDelete");
+        var btnUndoDelete = getById("btnUndoDelete");
         var btnSetStart = getById("btnSetStart");
         var btnSetEnd = getById("btnSetEnd");
         var btnClearStart = getById("btnClearStart");
@@ -6968,6 +7878,17 @@
                 }
                 if (mediaPreviewKind === "image") {
                     importSelectedImage(mediaPreviewId);
+                }
+            });
+        }
+        if (btnMediaPreviewImportComp) {
+            btnMediaPreviewImportComp.addEventListener("click", function () {
+                if (mediaPreviewKind === "video") {
+                    importSelectedVideoToActiveComp(mediaPreviewId);
+                    return;
+                }
+                if (mediaPreviewKind === "image") {
+                    importSelectedImageToActiveComp(mediaPreviewId);
                 }
             });
         }
@@ -7157,6 +8078,9 @@
         if (btnClose) {
             btnClose.addEventListener("click", closeWindow);
         }
+        if (btnUndoDelete) {
+            btnUndoDelete.addEventListener("click", undoLastDeleteAction);
+        }
 
         if (modelSelect) {
             modelSelect.addEventListener("change", function () {
@@ -7291,6 +8215,7 @@
         loadLayouts();
         loadGenerationPrefs();
         probeVideoCapabilities(false);
+        startPendingJobsStaleWatcher();
 
         (function bindVideoPreviewError() {
             var player = getById("videoPreviewPlayer");
@@ -7312,10 +8237,21 @@
             });
         }());
 
-        renderAll(getState());
-        setStatus("Ready.", false);
+        var initialState = getState();
+        var initialStaleResult = markStalePendingJobs({
+            state: initialState,
+            notify: true
+        });
+        if (initialStaleResult.changed) {
+            initialState = getState();
+        }
+        renderAll(initialState);
+        if (!initialStaleResult.changed) {
+            setStatus("Ready.", false);
+        }
         setGenerationStatus("Idle.", false);
         setImageGenerationStatus("Idle.", false);
+        updateUndoDeleteButtonState();
         refreshBusyUi();
         schedulePendingVideoResume(280);
 
@@ -7334,6 +8270,13 @@
 
         window.VeoBridgeState.onStateChanged = function (nextState) {
             var stateSnapshot = nextState || getState();
+            var staleResult = markStalePendingJobs({
+                state: stateSnapshot,
+                notify: true
+            });
+            if (staleResult.changed) {
+                return;
+            }
             renderAll(stateSnapshot);
             if (!isVideoGenerating && hasActivePendingVideoJobs(stateSnapshot)) {
                 schedulePendingVideoResume(380);
@@ -7350,6 +8293,9 @@
 
         window.addEventListener("focus", function () {
             probeVideoCapabilities(false);
+            markStalePendingJobs({
+                notify: true
+            });
             schedulePendingVideoResume(220);
         });
 
@@ -7357,6 +8303,7 @@
             stopWindowSizeWatcher();
             saveWindowSizeNow();
             stopPendingJobsLeaseHeartbeat();
+            stopPendingJobsStaleWatcher();
             releasePendingJobsLease();
             stopSmoothProgressTicker();
             if (pendingVideoResumeTimer && typeof window.clearTimeout === "function") {
