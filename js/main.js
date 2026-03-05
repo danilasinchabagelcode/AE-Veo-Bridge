@@ -26,6 +26,63 @@
         return cs;
     }
 
+    function readHostEnvironment() {
+        var cep = window.__adobe_cep__;
+        var raw;
+
+        if (!cep || typeof cep.getHostEnvironment !== "function") {
+            return null;
+        }
+
+        try {
+            raw = cep.getHostEnvironment();
+            if (!raw) {
+                return null;
+            }
+            return JSON.parse(raw);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function getHostMajorVersion() {
+        var env = readHostEnvironment();
+        var version = "";
+        var major = 0;
+
+        if (env && env.appVersion) {
+            version = String(env.appVersion);
+            major = parseInt(version.split(".")[0], 10);
+            if (isFinite(major) && major > 0) {
+                return major;
+            }
+        }
+
+        return 0;
+    }
+
+    function isMacHost() {
+        var env = readHostEnvironment();
+        var appName = "";
+        var navPlatform = "";
+
+        if (env && env.appLocale && typeof env.appLocale === "string") {
+            // no-op, keep env read for compatibility
+        }
+
+        if (env && env.appName) {
+            appName = String(env.appName).toLowerCase();
+        }
+        if (typeof navigator !== "undefined" && navigator && navigator.platform) {
+            navPlatform = String(navigator.platform).toLowerCase();
+        }
+
+        if (appName.indexOf("mac") >= 0) {
+            return true;
+        }
+        return navPlatform.indexOf("mac") >= 0;
+    }
+
     function parseHostResult(raw) {
         if (typeof raw !== "string") {
             return null;
@@ -238,6 +295,15 @@
             try {
                 bridge.requestOpenExtension("com.veobridge.gallery", "");
                 opened = true;
+                if (isMacHost() || getHostMajorVersion() >= 25) {
+                    window.setTimeout(function () {
+                        try {
+                            bridge.requestOpenExtension("com.veobridge.gallery", "");
+                        } catch (retryError) {
+                            // ignore
+                        }
+                    }, 120);
+                }
             } catch (requestOpenError) {
                 opened = false;
             }
