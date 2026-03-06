@@ -92,7 +92,6 @@
     var SMOOTH_PROGRESS_TICK_MS = 40 * SMOOTH_PROGRESS_SLOWDOWN_MULTIPLIER;
     var SMOOTH_PROGRESS_SYNTH_MAX_PERCENT = 90;
     var UNDO_DELETE_STACK_LIMIT = 10;
-    var CLEANUP_CONFIRM_PREFIX = "Veo Bridge Cleanup";
 
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
@@ -1079,6 +1078,27 @@
         };
     }
 
+    function openCleanupConfirmModal() {
+        var modal = getById("cleanupConfirmModal");
+        if (isVideoGenerating || isImageGenerating || isResumingPendingJobs) {
+            setStatus("Cleanup is blocked while generation is running.", true);
+            return;
+        }
+        if (!modal) {
+            runCleanup();
+            return;
+        }
+        modal.hidden = false;
+    }
+
+    function closeCleanupConfirmModal() {
+        var modal = getById("cleanupConfirmModal");
+        if (!modal) {
+            return;
+        }
+        modal.hidden = true;
+    }
+
     function runCleanup() {
         var state = getState();
         var pruneResult;
@@ -1086,7 +1106,6 @@
         var orphanResult;
         var trashResult;
         var pruneStats;
-        var confirmText;
         var parts = [];
         var hadErrors = false;
 
@@ -1098,17 +1117,7 @@
             setStatus("Cleanup is unavailable in this environment.", true);
             return;
         }
-
-        if (typeof window.prompt === "function") {
-            confirmText = window.prompt(
-                CLEANUP_CONFIRM_PREFIX + "\nType CLEANUP to permanently remove orphan files and clear VeoBridge trash.",
-                ""
-            );
-            if (trimText(confirmText).toUpperCase() !== "CLEANUP") {
-                setStatus("Cleanup canceled.", false);
-                return;
-            }
-        }
+        closeCleanupConfirmModal();
 
         pruneResult = pruneStateForCleanup(state);
         pruneStats = pruneResult.stats;
@@ -7129,10 +7138,311 @@
         setStatus("Revealed frame in file manager.", false);
     }
 
+    function ensureHostPathsForImport(callback) {
+        var done = typeof callback === "function" ? callback : function () {};
+        if (hostPaths && hostPaths.bridgeDir) {
+            done(null, hostPaths);
+            return;
+        }
+        if (!window.VeoBridgeState || typeof window.VeoBridgeState.ensurePaths !== "function") {
+            done(new Error("Path initialization is unavailable in this environment."));
+            return;
+        }
+        window.VeoBridgeState.ensurePaths(function (error, pathsResult) {
+            if (error) {
+                done(error);
+                return;
+            }
+            hostPaths = pathsResult || hostPaths;
+            done(null, hostPaths);
+        });
+    }
+
+    function resolveProjectMediaDir(mediaKind) {
+        if (mediaKind === "video") {
+            return resolveProjectVideosDir();
+        }
+        return resolveProjectImagesDir();
+    }
+
+    function buildUniquePathInDir(targetDir, sourcePath) {
+        var fileName;
+        var ext;
+        var stem;
+        var candidate;
+        var suffix = 1;
+
+        if (!targetDir || !sourcePath || !path) {
+            return "";
+        }
+
+        fileName = path.basename(sourcePath);
+        ext = path.extname(fileName);
+        stem = path.basename(fileName, ext);
+        candidate = path.join(targetDir, fileName);
+
+        while (fileExists(candidate)) {
+            candidate = path.join(targetDir, stem + "_" + String(suffix) + ext);
+            suffix += 1;
+            if (suffix > 5000) {
+                return "";
+            }
+        }
+        return candidate;
+    }
+
+    function remapPathInState(oldPath, nextPath) {
+        var oldNorm = normalizePathForCompare(oldPath);
+        var nextNorm = normalizePathForCompare(nextPath);
+        var state;
+        var shots;
+        var refs;
+        var videoRefs;
+        var videos;
+        var images;
+        var pendingJobs;
+        var changed = false;
+        var i;
+        var j;
+        var item;
+        var nextItem;
+        var nextRefs;
+
+        if (!oldNorm || !nextNorm || oldNorm === nextNorm) {
+            return false;
+        }
+
+        state = getState();
+
+        shots = (state.shots || []).slice(0);
+        for (i = 0; i < shots.length; i += 1) {
+            item = shots[i];
+            if (!item || normalizePathForCompare(item.path) !== oldNorm) {
+                continue;
+            }
+            nextItem = cloneJson(item, {});
+            nextItem.path = nextPath;
+            shots[i] = nextItem;
+            changed = true;
+        }
+
+        refs = (state.refs || []).slice(0);
+        for (i = 0; i < refs.length; i += 1) {
+            item = refs[i];
+            if (!item || normalizePathForCompare(item.path) !== oldNorm) {
+                continue;
+            }
+            nextItem = cloneJson(item, {});
+            nextItem.path = nextPath;
+            refs[i] = nextItem;
+            changed = true;
+        }
+
+        videoRefs = getVideoRefs(state).slice(0);
+        for (i = 0; i < videoRefs.length; i += 1) {
+            item = videoRefs[i];
+            if (!item || normalizePathForCompare(item.path) !== oldNorm) {
+                continue;
+            }
+            nextItem = cloneJson(item, {});
+            nextItem.path = nextPath;
+            videoRefs[i] = nextItem;
+            changed = true;
+        }
+
+        videos = (state.videos || []).slice(0);
+        for (i = 0; i < videos.length; i += 1) {
+            item = videos[i];
+            if (!item) {
+                continue;
+            }
+            nextItem = null;
+            if (normalizePathForCompare(item.path) === oldNorm) {
+                nextItem = cloneJson(item, {});
+                nextItem.path = nextPath;
+            }
+            if (normalizePathForCompare(item.startShotPath) === oldNorm) {
+                nextItem = nextItem || cloneJson(item, {});
+                nextItem.startShotPath = nextPath;
+            }
+            if (normalizePathForCompare(item.endShotPath) === oldNorm) {
+                nextItem = nextItem || cloneJson(item, {});
+                nextItem.endShotPath = nextPath;
+            }
+            if (item.refPaths && item.refPaths instanceof Array) {
+                nextRefs = item.refPaths.slice(0);
+                for (j = 0; j < nextRefs.length; j += 1) {
+                    if (normalizePathForCompare(nextRefs[j]) === oldNorm) {
+                        nextRefs[j] = nextPath;
+                        nextItem = nextItem || cloneJson(item, {});
+                    }
+                }
+                if (nextItem) {
+                    nextItem.refPaths = nextRefs;
+                }
+            }
+            if (nextItem) {
+                videos[i] = nextItem;
+                changed = true;
+            }
+        }
+
+        images = (state.images || []).slice(0);
+        for (i = 0; i < images.length; i += 1) {
+            item = images[i];
+            if (!item) {
+                continue;
+            }
+            nextItem = null;
+            if (normalizePathForCompare(item.path) === oldNorm) {
+                nextItem = cloneJson(item, {});
+                nextItem.path = nextPath;
+            }
+            if (item.refPaths && item.refPaths instanceof Array) {
+                nextRefs = item.refPaths.slice(0);
+                for (j = 0; j < nextRefs.length; j += 1) {
+                    if (normalizePathForCompare(nextRefs[j]) === oldNorm) {
+                        nextRefs[j] = nextPath;
+                        nextItem = nextItem || cloneJson(item, {});
+                    }
+                }
+                if (nextItem) {
+                    nextItem.refPaths = nextRefs;
+                }
+            }
+            if (nextItem) {
+                images[i] = nextItem;
+                changed = true;
+            }
+        }
+
+        pendingJobs = getPendingJobs(state).slice(0);
+        for (i = 0; i < pendingJobs.length; i += 1) {
+            item = pendingJobs[i];
+            if (!item) {
+                continue;
+            }
+            nextItem = null;
+            if (normalizePathForCompare(item.startShotPath) === oldNorm) {
+                nextItem = cloneJson(item, {});
+                nextItem.startShotPath = nextPath;
+            }
+            if (normalizePathForCompare(item.endShotPath) === oldNorm) {
+                nextItem = nextItem || cloneJson(item, {});
+                nextItem.endShotPath = nextPath;
+            }
+            if (normalizePathForCompare(item.downloadedPath) === oldNorm) {
+                nextItem = nextItem || cloneJson(item, {});
+                nextItem.downloadedPath = nextPath;
+            }
+            if (item.references && item.references instanceof Array) {
+                nextRefs = item.references.slice(0);
+                for (j = 0; j < nextRefs.length; j += 1) {
+                    if (!nextRefs[j]) {
+                        continue;
+                    }
+                    if (normalizePathForCompare(nextRefs[j].path) === oldNorm) {
+                        nextRefs[j] = cloneJson(nextRefs[j], {});
+                        nextRefs[j].path = nextPath;
+                        nextItem = nextItem || cloneJson(item, {});
+                    }
+                }
+                if (nextItem) {
+                    nextItem.references = nextRefs;
+                }
+            }
+            if (nextItem) {
+                pendingJobs[i] = nextItem;
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return false;
+        }
+
+        window.VeoBridgeState.updateState({
+            shots: shots,
+            refs: refs,
+            videoRefs: videoRefs,
+            videos: videos,
+            images: images,
+            pendingJobs: pendingJobs
+        });
+        return true;
+    }
+
+    function moveMediaToProjectForImport(sourcePath, mediaKind) {
+        var targetDir;
+        var targetPath;
+        var roots;
+        var i;
+
+        if (!sourcePath || !fileExists(sourcePath)) {
+            return {
+                ok: false,
+                error: "File is missing on disk."
+            };
+        }
+        if (!hostPaths || !hostPaths.projectSaved || !hostPaths.bridgeDir) {
+            return {
+                ok: false,
+                error: "Project is not saved. Save the AE project first."
+            };
+        }
+
+        targetDir = resolveProjectMediaDir(mediaKind);
+        if (!targetDir) {
+            return {
+                ok: false,
+                error: "Cannot access VeoBridge project folder."
+            };
+        }
+        if (isPathInsideDir(sourcePath, targetDir)) {
+            return {
+                ok: true,
+                moved: false,
+                path: sourcePath,
+                originalPath: sourcePath
+            };
+        }
+
+        targetPath = buildUniquePathInDir(targetDir, sourcePath);
+        if (!targetPath) {
+            return {
+                ok: false,
+                error: "Cannot create a unique target file name in project folder."
+            };
+        }
+        if (!moveFileWithRenameOrCopy(sourcePath, targetPath)) {
+            return {
+                ok: false,
+                error: "Failed to move media file into project folder."
+            };
+        }
+
+        roots = getManagedBridgeRoots();
+        for (i = 0; i < roots.length; i += 1) {
+            if (isPathInsideDir(sourcePath, roots[i])) {
+                removeEmptyParentDirs(path.dirname(sourcePath), roots[i]);
+                break;
+            }
+        }
+
+        return {
+            ok: true,
+            moved: true,
+            path: targetPath,
+            originalPath: sourcePath
+        };
+    }
+
     function importSelectedVideo(videoIdOverride) {
         var state = getState();
         var selectedId = typeof videoIdOverride === "string" ? videoIdOverride : state.selectedVideoId;
         var video = findVideoById(state.videos || [], selectedId);
+        var sourcePath;
+        var prepared;
         var script;
 
         if (!video || !video.path) {
@@ -7144,15 +7454,32 @@
             return;
         }
 
-        script = "VeoBridge_importVideo(" + toHostStringLiteral(video.path) + ")";
-        setStatus("Importing video into AE...", false);
-
-        callHost(script, function (error) {
-            if (error) {
-                setStatus("Import failed: " + formatError(error), true);
+        sourcePath = video.path;
+        setStatus("Preparing video for import...", false);
+        ensureHostPathsForImport(function (pathsError) {
+            if (pathsError) {
+                setStatus("Import failed: " + formatError(pathsError), true);
                 return;
             }
-            setStatus("Done: Video imported into VeoBridge/Generated.", false);
+            prepared = moveMediaToProjectForImport(sourcePath, "video");
+            if (!prepared.ok) {
+                setStatus("Import failed: " + prepared.error, true);
+                return;
+            }
+            if (prepared.moved) {
+                remapPathInState(prepared.originalPath, prepared.path);
+            }
+
+            script = "VeoBridge_importVideo(" + toHostStringLiteral(prepared.path) + ")";
+            setStatus("Importing video into AE...", false);
+
+            callHost(script, function (error) {
+                if (error) {
+                    setStatus("Import failed: " + formatError(error), true);
+                    return;
+                }
+                setStatus("Done: Video imported from project folder.", false);
+            });
         });
     }
 
@@ -7160,6 +7487,8 @@
         var state = getState();
         var selectedId = typeof videoIdOverride === "string" ? videoIdOverride : state.selectedVideoId;
         var video = findVideoById(state.videos || [], selectedId);
+        var sourcePath;
+        var prepared;
         var script;
 
         if (!video || !video.path) {
@@ -7171,15 +7500,32 @@
             return;
         }
 
-        script = "VeoBridge_importVideoToActiveComp(" + toHostStringLiteral(video.path) + ")";
-        setStatus("Importing video to active composition...", false);
-
-        callHost(script, function (error) {
-            if (error) {
-                setStatus("Import to active comp failed: " + formatError(error), true);
+        sourcePath = video.path;
+        setStatus("Preparing video for import...", false);
+        ensureHostPathsForImport(function (pathsError) {
+            if (pathsError) {
+                setStatus("Import to active comp failed: " + formatError(pathsError), true);
                 return;
             }
-            setStatus("Done: Video added to active composition.", false);
+            prepared = moveMediaToProjectForImport(sourcePath, "video");
+            if (!prepared.ok) {
+                setStatus("Import to active comp failed: " + prepared.error, true);
+                return;
+            }
+            if (prepared.moved) {
+                remapPathInState(prepared.originalPath, prepared.path);
+            }
+
+            script = "VeoBridge_importVideoToActiveComp(" + toHostStringLiteral(prepared.path) + ")";
+            setStatus("Importing video to active composition...", false);
+
+            callHost(script, function (error) {
+                if (error) {
+                    setStatus("Import to active comp failed: " + formatError(error), true);
+                    return;
+                }
+                setStatus("Done: Video added to active composition from project folder.", false);
+            });
         });
     }
 
@@ -7284,6 +7630,8 @@
         var state = getState();
         var selectedId = typeof imageIdOverride === "string" ? imageIdOverride : state.selectedImageId;
         var image = findImageById(state.images || [], selectedId);
+        var sourcePath;
+        var prepared;
         var script;
 
         if (!image || !image.path) {
@@ -7295,15 +7643,32 @@
             return;
         }
 
-        script = "VeoBridge_importImage(" + toHostStringLiteral(image.path) + ")";
-        setStatus("Importing image into AE...", false);
-
-        callHost(script, function (error) {
-            if (error) {
-                setStatus("Import failed: " + formatError(error), true);
+        sourcePath = image.path;
+        setStatus("Preparing image for import...", false);
+        ensureHostPathsForImport(function (pathsError) {
+            if (pathsError) {
+                setStatus("Import failed: " + formatError(pathsError), true);
                 return;
             }
-            setStatus("Done: Image imported into VeoBridge/Generated.", false);
+            prepared = moveMediaToProjectForImport(sourcePath, "image");
+            if (!prepared.ok) {
+                setStatus("Import failed: " + prepared.error, true);
+                return;
+            }
+            if (prepared.moved) {
+                remapPathInState(prepared.originalPath, prepared.path);
+            }
+
+            script = "VeoBridge_importImage(" + toHostStringLiteral(prepared.path) + ")";
+            setStatus("Importing image into AE...", false);
+
+            callHost(script, function (error) {
+                if (error) {
+                    setStatus("Import failed: " + formatError(error), true);
+                    return;
+                }
+                setStatus("Done: Image imported from project folder.", false);
+            });
         });
     }
 
@@ -7311,6 +7676,8 @@
         var state = getState();
         var selectedId = typeof imageIdOverride === "string" ? imageIdOverride : state.selectedImageId;
         var image = findImageById(state.images || [], selectedId);
+        var sourcePath;
+        var prepared;
         var script;
 
         if (!image || !image.path) {
@@ -7322,15 +7689,32 @@
             return;
         }
 
-        script = "VeoBridge_importImageToActiveComp(" + toHostStringLiteral(image.path) + ")";
-        setStatus("Importing image to active composition...", false);
-
-        callHost(script, function (error) {
-            if (error) {
-                setStatus("Import to active comp failed: " + formatError(error), true);
+        sourcePath = image.path;
+        setStatus("Preparing image for import...", false);
+        ensureHostPathsForImport(function (pathsError) {
+            if (pathsError) {
+                setStatus("Import to active comp failed: " + formatError(pathsError), true);
                 return;
             }
-            setStatus("Done: Image added to active composition.", false);
+            prepared = moveMediaToProjectForImport(sourcePath, "image");
+            if (!prepared.ok) {
+                setStatus("Import to active comp failed: " + prepared.error, true);
+                return;
+            }
+            if (prepared.moved) {
+                remapPathInState(prepared.originalPath, prepared.path);
+            }
+
+            script = "VeoBridge_importImageToActiveComp(" + toHostStringLiteral(prepared.path) + ")";
+            setStatus("Importing image to active composition...", false);
+
+            callHost(script, function (error) {
+                if (error) {
+                    setStatus("Import to active comp failed: " + formatError(error), true);
+                    return;
+                }
+                setStatus("Done: Image added to active composition from project folder.", false);
+            });
         });
     }
 
@@ -8611,6 +8995,9 @@
         var btnMediaPreviewToFrames = getById("btnMediaPreviewToFrames");
         var btnMediaPreviewReveal = getById("btnMediaPreviewReveal");
         var btnMediaPreviewDelete = getById("btnMediaPreviewDelete");
+        var cleanupConfirmModal = getById("cleanupConfirmModal");
+        var btnCleanupCancel = getById("btnCleanupCancel");
+        var btnCleanupConfirm = getById("btnCleanupConfirm");
         var btnCleanup = getById("btnCleanup");
         var btnUndoDelete = getById("btnUndoDelete");
         var btnSetStart = getById("btnSetStart");
@@ -8923,7 +9310,24 @@
             btnUndoDelete.addEventListener("click", undoLastDeleteAction);
         }
         if (btnCleanup) {
-            btnCleanup.addEventListener("click", runCleanup);
+            btnCleanup.addEventListener("click", openCleanupConfirmModal);
+        }
+        if (btnCleanupCancel) {
+            btnCleanupCancel.addEventListener("click", function () {
+                closeCleanupConfirmModal();
+                setStatus("Cleanup canceled.", false);
+            });
+        }
+        if (btnCleanupConfirm) {
+            btnCleanupConfirm.addEventListener("click", runCleanup);
+        }
+        if (cleanupConfirmModal) {
+            cleanupConfirmModal.addEventListener("click", function (event) {
+                if (event && event.target === cleanupConfirmModal) {
+                    closeCleanupConfirmModal();
+                    setStatus("Cleanup canceled.", false);
+                }
+            });
         }
 
         if (modelSelect) {
@@ -9023,6 +9427,11 @@
                 return;
             }
             if (event.key === "Escape" || event.keyCode === 27) {
+                if (cleanupConfirmModal && !cleanupConfirmModal.hidden) {
+                    closeCleanupConfirmModal();
+                    setStatus("Cleanup canceled.", false);
+                    return;
+                }
                 if (mediaPreviewOverlay && !mediaPreviewOverlay.hidden) {
                     closeMediaPreview();
                 }

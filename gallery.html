@@ -232,6 +232,19 @@
                     <div id="mediaPreviewMeta" class="preview-meta"></div>
                 </div>
             </div>
+
+            <div id="cleanupConfirmModal" class="modal-backdrop" hidden>
+                <div class="modal-card">
+                    <h2 class="modal-title">Cleanup VeoBridge Files?</h2>
+                    <p class="muted-note">
+                        This will remove orphan files from VeoBridge storage and clear VeoBridge trash.
+                    </p>
+                    <div class="modal-actions">
+                        <button id="btnCleanupCancel" type="button">Cancel</button>
+                        <button id="btnCleanupConfirm" type="button" class="is-danger">Cleanup</button>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section id="panelImage" class="tab-panel flow-panel ghost-hidden" data-panel-kind="image" hidden>
