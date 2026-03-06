@@ -19,6 +19,7 @@
 
     var path = null;
     var fs = null;
+    var os = null;
     var childProcess = null;
     var cs = null;
 
@@ -91,6 +92,7 @@
     var SMOOTH_PROGRESS_TICK_MS = 40 * SMOOTH_PROGRESS_SLOWDOWN_MULTIPLIER;
     var SMOOTH_PROGRESS_SYNTH_MAX_PERCENT = 90;
     var UNDO_DELETE_STACK_LIMIT = 10;
+    var CLEANUP_CONFIRM_PREFIX = "Veo Bridge Cleanup";
 
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
@@ -418,6 +420,735 @@
             return "";
         }
         return targetDir;
+    }
+
+    function resolveUserDataBridgeDir() {
+        var platform;
+        var homeDir;
+        var baseDir;
+
+        if (!path || !os || typeof process === "undefined" || !process || !process.env) {
+            return "";
+        }
+
+        platform = process.platform || "";
+        if (platform === "win32") {
+            baseDir = process.env.APPDATA || "";
+            if (!baseDir) {
+                baseDir = path.join(process.env.USERPROFILE || "", "AppData", "Roaming");
+            }
+        } else if (platform === "darwin") {
+            homeDir = os.homedir ? os.homedir() : (process.env.HOME || "");
+            if (!homeDir) {
+                return "";
+            }
+            baseDir = path.join(homeDir, "Library", "Application Support");
+        } else {
+            baseDir = process.env.XDG_DATA_HOME || "";
+            if (!baseDir) {
+                homeDir = os.homedir ? os.homedir() : (process.env.HOME || "");
+                if (!homeDir) {
+                    return "";
+                }
+                baseDir = path.join(homeDir, ".local", "share");
+            }
+        }
+
+        if (!baseDir) {
+            return "";
+        }
+        return path.join(baseDir, "VeoBridge");
+    }
+
+    function getManagedBridgeRoots() {
+        var roots = [];
+        var seen = {};
+        var projectBridge = hostPaths && hostPaths.bridgeDir ? trimText(hostPaths.bridgeDir) : "";
+        var userBridge = resolveUserDataBridgeDir();
+        var key;
+
+        function pushRoot(rootPath) {
+            var cleaned = trimText(rootPath || "");
+            if (!cleaned) {
+                return;
+            }
+            key = normalizePathForCompare(cleaned);
+            if (!key || seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            roots.push(cleaned);
+        }
+
+        pushRoot(projectBridge);
+        pushRoot(userBridge);
+        return roots;
+    }
+
+    function isPathInsideDir(filePath, dirPath) {
+        var normalizedFile;
+        var normalizedDir;
+        if (!filePath || !dirPath || !path) {
+            return false;
+        }
+        normalizedFile = normalizePathForCompare(path.resolve(filePath));
+        normalizedDir = normalizePathForCompare(path.resolve(dirPath));
+        if (!normalizedFile || !normalizedDir) {
+            return false;
+        }
+        if (normalizedFile === normalizedDir) {
+            return true;
+        }
+        return normalizedFile.indexOf(normalizedDir + "/") === 0;
+    }
+
+    function isManagedMediaPath(filePath) {
+        var roots = getManagedBridgeRoots();
+        var i;
+        if (!filePath || !path) {
+            return false;
+        }
+        if (!/\.(png|jpg|jpeg|webp|mp4)$/i.test(String(filePath || ""))) {
+            return false;
+        }
+        for (i = 0; i < roots.length; i += 1) {
+            if (isPathInsideDir(filePath, roots[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function buildTrashPathForFile(filePath) {
+        var roots = getManagedBridgeRoots();
+        var selectedRoot = "";
+        var trashDir;
+        var ext;
+        var stem;
+        var candidateName;
+        var candidatePath;
+        var i;
+        var attempt;
+
+        if (!filePath || !path || !fs) {
+            return null;
+        }
+
+        for (i = 0; i < roots.length; i += 1) {
+            if (isPathInsideDir(filePath, roots[i])) {
+                selectedRoot = roots[i];
+                break;
+            }
+        }
+
+        if (!selectedRoot) {
+            selectedRoot = roots.length ? roots[0] : "";
+        }
+        if (!selectedRoot) {
+            return null;
+        }
+
+        trashDir = path.join(selectedRoot, ".trash");
+        if (!ensureDirRecursive(trashDir)) {
+            return null;
+        }
+
+        ext = path.extname(filePath) || "";
+        stem = path.basename(filePath, ext);
+        candidateName = stem + "__" + String(new Date().getTime()) + ext;
+        candidatePath = path.join(trashDir, candidateName);
+        attempt = 0;
+        while (fileExists(candidatePath) && attempt < 50) {
+            attempt += 1;
+            candidateName = stem + "__" + String(new Date().getTime()) + "_" + String(attempt) + ext;
+            candidatePath = path.join(trashDir, candidateName);
+        }
+
+        return {
+            root: selectedRoot,
+            trashDir: trashDir,
+            trashPath: candidatePath
+        };
+    }
+
+    function moveFileWithRenameOrCopy(sourcePath, targetPath) {
+        try {
+            fs.renameSync(sourcePath, targetPath);
+            return true;
+        } catch (renameError) {
+            try {
+                fs.writeFileSync(targetPath, fs.readFileSync(sourcePath));
+                fs.unlinkSync(sourcePath);
+                return true;
+            } catch (copyFallbackError) {
+                return false;
+            }
+        }
+    }
+
+    function moveFileToTrash(filePath) {
+        var plan;
+        if (!filePath) {
+            return { ok: false, moved: false, reason: "NO_PATH" };
+        }
+        if (!fileExists(filePath)) {
+            return { ok: true, moved: false, reason: "MISSING" };
+        }
+        if (!isManagedMediaPath(filePath)) {
+            return { ok: false, moved: false, reason: "OUTSIDE_MANAGED_DIR" };
+        }
+        if (!fs || !path) {
+            return { ok: false, moved: false, reason: "FS_UNAVAILABLE" };
+        }
+        plan = buildTrashPathForFile(filePath);
+        if (!plan || !plan.trashPath) {
+            return { ok: false, moved: false, reason: "TRASH_UNAVAILABLE" };
+        }
+        if (!moveFileWithRenameOrCopy(filePath, plan.trashPath)) {
+            return { ok: false, moved: false, reason: "MOVE_FAILED" };
+        }
+        return {
+            ok: true,
+            moved: true,
+            originalPath: filePath,
+            trashPath: plan.trashPath
+        };
+    }
+
+    function restoreFileFromTrash(entry) {
+        var originalPath = entry && entry.originalPath ? entry.originalPath : "";
+        var trashPath = entry && entry.trashPath ? entry.trashPath : "";
+
+        if (!originalPath || !trashPath || !path || !fs) {
+            return false;
+        }
+        if (!fileExists(trashPath)) {
+            return false;
+        }
+        if (fileExists(originalPath)) {
+            return true;
+        }
+        if (!ensureDirRecursive(path.dirname(originalPath))) {
+            return false;
+        }
+        return moveFileWithRenameOrCopy(trashPath, originalPath);
+    }
+
+    function collectReferencedPathSet(state) {
+        var result = {};
+        var i;
+        var jobs;
+        var refs;
+        var key;
+
+        function addPath(filePath) {
+            var normalized = normalizePathForCompare(filePath);
+            if (!normalized) {
+                return;
+            }
+            result[normalized] = true;
+        }
+
+        refs = state.shots || [];
+        for (i = 0; i < refs.length; i += 1) {
+            addPath(refs[i] && refs[i].path);
+        }
+        refs = state.videos || [];
+        for (i = 0; i < refs.length; i += 1) {
+            addPath(refs[i] && refs[i].path);
+        }
+        refs = state.images || [];
+        for (i = 0; i < refs.length; i += 1) {
+            addPath(refs[i] && refs[i].path);
+        }
+        refs = state.refs || [];
+        for (i = 0; i < refs.length; i += 1) {
+            addPath(refs[i] && refs[i].path);
+        }
+        refs = getVideoRefs(state);
+        for (i = 0; i < refs.length; i += 1) {
+            addPath(refs[i] && refs[i].path);
+        }
+
+        jobs = getPendingJobs(state);
+        for (i = 0; i < jobs.length; i += 1) {
+            addPath(jobs[i] && jobs[i].startShotPath);
+            addPath(jobs[i] && jobs[i].endShotPath);
+            addPath(jobs[i] && jobs[i].downloadedPath);
+            refs = jobs[i] && jobs[i].references && jobs[i].references instanceof Array ? jobs[i].references : [];
+            for (key = 0; key < refs.length; key += 1) {
+                addPath(refs[key] && refs[key].path);
+            }
+        }
+        return result;
+    }
+
+    function shouldDeletePathForNextState(filePath, nextState) {
+        var normalized;
+        var refs;
+        if (!filePath || !fileExists(filePath) || !isManagedMediaPath(filePath)) {
+            return false;
+        }
+        normalized = normalizePathForCompare(filePath);
+        refs = collectReferencedPathSet(nextState);
+        return !refs[normalized];
+    }
+
+    function cloneDeleteFileEntries(entries) {
+        var source = entries && entries instanceof Array ? entries : [];
+        var out = [];
+        var i;
+        for (i = 0; i < source.length; i += 1) {
+            if (!source[i] || !source[i].originalPath || !source[i].trashPath) {
+                continue;
+            }
+            out.push({
+                originalPath: source[i].originalPath,
+                trashPath: source[i].trashPath
+            });
+        }
+        return out;
+    }
+
+    function isPathInTrashDir(filePath, rootDir) {
+        var trashDir;
+        if (!filePath || !rootDir || !path) {
+            return false;
+        }
+        trashDir = path.join(rootDir, ".trash");
+        return isPathInsideDir(filePath, trashDir);
+    }
+
+    function collectManagedMediaFiles(options) {
+        var opts = options || {};
+        var includeTrash = !!opts.includeTrash;
+        var roots = getManagedBridgeRoots();
+        var files = [];
+        var seen = {};
+        var stack;
+        var currentDir;
+        var entries;
+        var entryName;
+        var fullPath;
+        var normalized;
+        var stats;
+        var i;
+        var j;
+
+        if (!fs || !path) {
+            return files;
+        }
+
+        for (i = 0; i < roots.length; i += 1) {
+            if (!roots[i] || !fileExists(roots[i])) {
+                continue;
+            }
+
+            stack = [roots[i]];
+            while (stack.length) {
+                currentDir = stack.pop();
+                try {
+                    entries = fs.readdirSync(currentDir);
+                } catch (readError) {
+                    continue;
+                }
+
+                for (j = 0; j < entries.length; j += 1) {
+                    entryName = entries[j];
+                    fullPath = path.join(currentDir, entryName);
+                    try {
+                        stats = fs.statSync(fullPath);
+                    } catch (statError) {
+                        continue;
+                    }
+
+                    if (stats && stats.isDirectory && stats.isDirectory()) {
+                        if (!includeTrash && isPathInTrashDir(fullPath, roots[i])) {
+                            continue;
+                        }
+                        stack.push(fullPath);
+                        continue;
+                    }
+
+                    if (!isManagedMediaPath(fullPath)) {
+                        continue;
+                    }
+                    if (!includeTrash && isPathInTrashDir(fullPath, roots[i])) {
+                        continue;
+                    }
+
+                    normalized = normalizePathForCompare(fullPath);
+                    if (!normalized || seen[normalized]) {
+                        continue;
+                    }
+                    seen[normalized] = true;
+                    files.push(fullPath);
+                }
+            }
+        }
+
+        return files;
+    }
+
+    function removeFilePermanently(filePath) {
+        if (!filePath || !fs) {
+            return false;
+        }
+        try {
+            fs.unlinkSync(filePath);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function removeEmptyParentDirs(startDir, stopDir) {
+        var current = startDir;
+        var normalizedStop;
+        var normalizedCurrent;
+        var entries;
+
+        if (!current || !stopDir || !path || !fs) {
+            return;
+        }
+        normalizedStop = normalizePathForCompare(path.resolve(stopDir));
+        while (current && current !== path.dirname(current)) {
+            normalizedCurrent = normalizePathForCompare(path.resolve(current));
+            if (!normalizedCurrent || normalizedCurrent === normalizedStop) {
+                break;
+            }
+            try {
+                entries = fs.readdirSync(current);
+            } catch (error) {
+                break;
+            }
+            if (entries && entries.length) {
+                break;
+            }
+            try {
+                fs.rmdirSync(current);
+            } catch (removeError) {
+                break;
+            }
+            current = path.dirname(current);
+        }
+    }
+
+    function removeDirectoryRecursive(targetDir) {
+        var deletedFiles = 0;
+        var failedFiles = 0;
+        var entries;
+        var i;
+        var fullPath;
+        var stats;
+        var nested;
+
+        if (!targetDir || !fs || !path || !fileExists(targetDir)) {
+            return {
+                deletedFiles: 0,
+                failedFiles: 0
+            };
+        }
+
+        try {
+            entries = fs.readdirSync(targetDir);
+        } catch (readError) {
+            return {
+                deletedFiles: 0,
+                failedFiles: 1
+            };
+        }
+
+        for (i = 0; i < entries.length; i += 1) {
+            fullPath = path.join(targetDir, entries[i]);
+            try {
+                stats = fs.statSync(fullPath);
+            } catch (statError) {
+                failedFiles += 1;
+                continue;
+            }
+
+            if (stats && stats.isDirectory && stats.isDirectory()) {
+                nested = removeDirectoryRecursive(fullPath);
+                deletedFiles += nested.deletedFiles;
+                failedFiles += nested.failedFiles;
+                continue;
+            }
+
+            if (removeFilePermanently(fullPath)) {
+                deletedFiles += 1;
+            } else {
+                failedFiles += 1;
+            }
+        }
+
+        try {
+            fs.rmdirSync(targetDir);
+        } catch (rmdirError) {
+            // keep failure soft; files are primary concern
+        }
+
+        return {
+            deletedFiles: deletedFiles,
+            failedFiles: failedFiles
+        };
+    }
+
+    function pruneStateForCleanup(state) {
+        var shots = state.shots || [];
+        var videos = state.videos || [];
+        var images = state.images || [];
+        var refs = state.refs || [];
+        var videoRefs = getVideoRefs(state);
+        var nextShots = [];
+        var nextVideos = [];
+        var nextImages = [];
+        var nextRefs = [];
+        var nextVideoRefs = [];
+        var stats = {
+            removedShots: 0,
+            removedVideos: 0,
+            removedImages: 0,
+            removedRefs: 0,
+            removedVideoRefs: 0
+        };
+        var validShotIds = {};
+        var validVideoIds = {};
+        var validImageIds = {};
+        var nextSelectedShotId = null;
+        var nextStartShotId = null;
+        var nextEndShotId = null;
+        var nextSelectedVideoId = null;
+        var nextSelectedImageId = null;
+        var i;
+        var item;
+
+        for (i = 0; i < shots.length; i += 1) {
+            item = shots[i];
+            if (!item || !item.id || !item.path || !fileExists(item.path)) {
+                stats.removedShots += 1;
+                continue;
+            }
+            nextShots.push(item);
+            validShotIds[item.id] = true;
+        }
+
+        for (i = 0; i < videos.length; i += 1) {
+            item = videos[i];
+            if (!item || !item.id || !item.path || !fileExists(item.path)) {
+                stats.removedVideos += 1;
+                continue;
+            }
+            nextVideos.push(item);
+            validVideoIds[item.id] = true;
+        }
+
+        for (i = 0; i < images.length; i += 1) {
+            item = images[i];
+            if (!item || !item.id || !item.path || !fileExists(item.path)) {
+                stats.removedImages += 1;
+                continue;
+            }
+            nextImages.push(item);
+            validImageIds[item.id] = true;
+        }
+
+        for (i = 0; i < refs.length; i += 1) {
+            item = refs[i];
+            if (!item || !item.path || !fileExists(item.path)) {
+                stats.removedRefs += 1;
+                continue;
+            }
+            nextRefs.push(item);
+        }
+
+        for (i = 0; i < videoRefs.length; i += 1) {
+            item = videoRefs[i];
+            if (!item || !item.path || !fileExists(item.path)) {
+                stats.removedVideoRefs += 1;
+                continue;
+            }
+            nextVideoRefs.push(item);
+        }
+
+        if (state.selectedShotId && validShotIds[state.selectedShotId]) {
+            nextSelectedShotId = state.selectedShotId;
+        } else if (nextShots.length) {
+            nextSelectedShotId = nextShots[nextShots.length - 1].id;
+        }
+
+        if (state.startShotId && validShotIds[state.startShotId]) {
+            nextStartShotId = state.startShotId;
+        }
+        if (state.endShotId && validShotIds[state.endShotId]) {
+            nextEndShotId = state.endShotId;
+        }
+
+        if (state.selectedVideoId && validVideoIds[state.selectedVideoId]) {
+            nextSelectedVideoId = state.selectedVideoId;
+        } else if (nextVideos.length) {
+            nextSelectedVideoId = nextVideos[0].id;
+        }
+
+        if (state.selectedImageId && validImageIds[state.selectedImageId]) {
+            nextSelectedImageId = state.selectedImageId;
+        } else if (nextImages.length) {
+            nextSelectedImageId = nextImages[0].id;
+        }
+
+        return {
+            patch: {
+                shots: nextShots,
+                selectedShotId: nextSelectedShotId,
+                startShotId: nextStartShotId,
+                endShotId: nextEndShotId,
+                refs: nextRefs,
+                videoRefs: nextVideoRefs,
+                videos: nextVideos,
+                selectedVideoId: nextSelectedVideoId,
+                images: nextImages,
+                selectedImageId: nextSelectedImageId
+            },
+            stats: stats
+        };
+    }
+
+    function cleanupOrphanFilesForState(cleanState) {
+        var mediaFiles = collectManagedMediaFiles({ includeTrash: false });
+        var refs = collectReferencedPathSet(cleanState);
+        var deleted = 0;
+        var failed = 0;
+        var i;
+        var filePath;
+        var normalized;
+        var roots;
+        var root;
+        var rootIndex;
+
+        for (i = 0; i < mediaFiles.length; i += 1) {
+            filePath = mediaFiles[i];
+            normalized = normalizePathForCompare(filePath);
+            if (refs[normalized]) {
+                continue;
+            }
+            if (removeFilePermanently(filePath)) {
+                deleted += 1;
+                roots = getManagedBridgeRoots();
+                for (rootIndex = 0; rootIndex < roots.length; rootIndex += 1) {
+                    root = roots[rootIndex];
+                    if (isPathInsideDir(filePath, root) && !isPathInTrashDir(filePath, root)) {
+                        removeEmptyParentDirs(path.dirname(filePath), root);
+                        break;
+                    }
+                }
+            } else {
+                failed += 1;
+            }
+        }
+
+        return {
+            deleted: deleted,
+            failed: failed
+        };
+    }
+
+    function cleanupTrashDirs() {
+        var roots = getManagedBridgeRoots();
+        var deleted = 0;
+        var failed = 0;
+        var i;
+        var trashDir;
+        var result;
+
+        for (i = 0; i < roots.length; i += 1) {
+            if (!roots[i]) {
+                continue;
+            }
+            trashDir = path.join(roots[i], ".trash");
+            if (!fileExists(trashDir)) {
+                continue;
+            }
+            result = removeDirectoryRecursive(trashDir);
+            deleted += result.deletedFiles;
+            failed += result.failedFiles;
+        }
+
+        return {
+            deleted: deleted,
+            failed: failed
+        };
+    }
+
+    function runCleanup() {
+        var state = getState();
+        var pruneResult;
+        var cleanState;
+        var orphanResult;
+        var trashResult;
+        var pruneStats;
+        var confirmText;
+        var parts = [];
+        var hadErrors = false;
+
+        if (isVideoGenerating || isImageGenerating || isResumingPendingJobs) {
+            setStatus("Cleanup is blocked while generation is running.", true);
+            return;
+        }
+        if (!fs || !path) {
+            setStatus("Cleanup is unavailable in this environment.", true);
+            return;
+        }
+
+        if (typeof window.prompt === "function") {
+            confirmText = window.prompt(
+                CLEANUP_CONFIRM_PREFIX + "\nType CLEANUP to permanently remove orphan files and clear VeoBridge trash.",
+                ""
+            );
+            if (trimText(confirmText).toUpperCase() !== "CLEANUP") {
+                setStatus("Cleanup canceled.", false);
+                return;
+            }
+        }
+
+        pruneResult = pruneStateForCleanup(state);
+        pruneStats = pruneResult.stats;
+        cleanState = {
+            shots: pruneResult.patch.shots || [],
+            selectedShotId: pruneResult.patch.selectedShotId || null,
+            startShotId: pruneResult.patch.startShotId || null,
+            endShotId: pruneResult.patch.endShotId || null,
+            refs: pruneResult.patch.refs || [],
+            videoRefs: pruneResult.patch.videoRefs || [],
+            videos: pruneResult.patch.videos || [],
+            selectedVideoId: pruneResult.patch.selectedVideoId || null,
+            images: pruneResult.patch.images || [],
+            selectedImageId: pruneResult.patch.selectedImageId || null,
+            pendingJobs: getPendingJobs(state)
+        };
+
+        orphanResult = cleanupOrphanFilesForState(cleanState);
+        trashResult = cleanupTrashDirs();
+
+        undoDeleteStack = [];
+        updateUndoDeleteButtonState();
+
+        window.VeoBridgeState.updateState(pruneResult.patch);
+
+        parts.push("State cleaned");
+        parts.push("shots -" + String(pruneStats.removedShots));
+        parts.push("videos -" + String(pruneStats.removedVideos));
+        parts.push("images -" + String(pruneStats.removedImages));
+        parts.push("refs -" + String(pruneStats.removedRefs));
+        parts.push("video refs -" + String(pruneStats.removedVideoRefs));
+        parts.push("orphan files deleted " + String(orphanResult.deleted));
+        parts.push("trash files deleted " + String(trashResult.deleted));
+
+        if (orphanResult.failed > 0 || trashResult.failed > 0) {
+            hadErrors = true;
+            parts.push("failed deletions " + String(orphanResult.failed + trashResult.failed));
+        }
+
+        setStatus(parts.join(" | "), hadErrors);
     }
 
     function resolveErrorMessage(reason) {
@@ -1161,15 +1892,17 @@
         btn.title = undoDeleteStack.length < 1 ? "Nothing to undo" : "Undo last delete";
     }
 
-    function pushUndoDeleteAction(label, snapshot) {
+    function pushUndoDeleteAction(label, snapshot, deletedFiles) {
         var normalizedLabel = trimText(label || "Delete");
         var normalizedSnapshot = cloneJson(snapshot, null);
+        var normalizedDeletedFiles = cloneDeleteFileEntries(deletedFiles);
         if (!normalizedSnapshot) {
             return;
         }
         undoDeleteStack.push({
             label: normalizedLabel,
-            snapshot: normalizedSnapshot
+            snapshot: normalizedSnapshot,
+            deletedFiles: normalizedDeletedFiles
         });
         if (undoDeleteStack.length > UNDO_DELETE_STACK_LIMIT) {
             undoDeleteStack = undoDeleteStack.slice(undoDeleteStack.length - UNDO_DELETE_STACK_LIMIT);
@@ -1179,6 +1912,10 @@
 
     function undoLastDeleteAction() {
         var entry;
+        var deletedFiles;
+        var restored = 0;
+        var missing = 0;
+        var i;
         if (!undoDeleteStack.length) {
             setStatus("Nothing to undo.", false);
             updateUndoDeleteButtonState();
@@ -1190,7 +1927,23 @@
             setStatus("Undo failed: snapshot is missing.", true);
             return;
         }
+        deletedFiles = entry.deletedFiles && entry.deletedFiles instanceof Array ? entry.deletedFiles : [];
+        for (i = 0; i < deletedFiles.length; i += 1) {
+            if (restoreFileFromTrash(deletedFiles[i])) {
+                restored += 1;
+            } else if (deletedFiles[i] && deletedFiles[i].originalPath) {
+                missing += 1;
+            }
+        }
         window.VeoBridgeState.updateState(entry.snapshot);
+        if (missing > 0) {
+            setStatus("Undo complete with warnings: restored " + restored + " file(s), " + missing + " file(s) could not be restored.", true);
+            return;
+        }
+        if (restored > 0) {
+            setStatus("Undo complete: " + (entry.label || "Delete") + ". Restored " + restored + " file(s).", false);
+            return;
+        }
         setStatus("Undo complete: " + (entry.label || "Delete"), false);
     }
 
@@ -6229,8 +6982,11 @@
         var nextSelected = null;
         var removed = false;
         var removedPath = "";
+        var removedFiles = [];
+        var moveResult = null;
         var nextImageRefs = [];
         var nextVideoRefs = [];
+        var nextState;
         var i;
 
         if (!selectedId) {
@@ -6254,8 +7010,6 @@
             return;
         }
 
-        pushUndoDeleteAction("Frame delete", buildUndoDeleteSnapshot(state));
-
         if (nextShots.length) {
             if (preferredSelectedId && preferredSelectedId !== selectedId && findShotById(nextShots, preferredSelectedId)) {
                 nextSelected = preferredSelectedId;
@@ -6276,6 +7030,30 @@
             nextVideoRefs = getVideoRefs(state);
         }
 
+        nextState = {
+            shots: nextShots,
+            selectedShotId: nextSelected,
+            startShotId: state.startShotId === selectedId ? null : state.startShotId,
+            endShotId: state.endShotId === selectedId ? null : state.endShotId,
+            refs: nextImageRefs,
+            videoRefs: nextVideoRefs,
+            videos: state.videos || [],
+            images: state.images || [],
+            pendingJobs: getPendingJobs(state)
+        };
+
+        if (removedPath && shouldDeletePathForNextState(removedPath, nextState)) {
+            moveResult = moveFileToTrash(removedPath);
+            if (moveResult && moveResult.ok && moveResult.moved) {
+                removedFiles.push({
+                    originalPath: moveResult.originalPath,
+                    trashPath: moveResult.trashPath
+                });
+            }
+        }
+
+        pushUndoDeleteAction("Frame delete", buildUndoDeleteSnapshot(state), removedFiles);
+
         window.VeoBridgeState.updateState({
             shots: nextShots,
             selectedShotId: nextSelected,
@@ -6285,6 +7063,10 @@
             videoRefs: nextVideoRefs
         });
 
+        if (removedFiles.length > 0) {
+            setStatus("Frame moved to VeoBridge trash.", false);
+            return;
+        }
         setStatus("Frame removed from gallery list.", false);
     }
 
@@ -6432,6 +7214,9 @@
         var nextVideos = [];
         var nextSelected = null;
         var removedVideo = null;
+        var removedFiles = [];
+        var moveResult = null;
+        var nextState;
 
         if (!selectedId) {
             setStatus("Select a generated video first.", true);
@@ -6451,8 +7236,6 @@
             return;
         }
 
-        pushUndoDeleteAction("Video delete", buildUndoDeleteSnapshot(state));
-
         if (nextVideos.length) {
             if (preferredSelectedId && preferredSelectedId !== selectedId && findVideoById(nextVideos, preferredSelectedId)) {
                 nextSelected = preferredSelectedId;
@@ -6461,12 +7244,40 @@
             }
         }
 
+        nextState = {
+            shots: state.shots || [],
+            selectedShotId: state.selectedShotId || null,
+            startShotId: state.startShotId || null,
+            endShotId: state.endShotId || null,
+            refs: state.refs || [],
+            videoRefs: getVideoRefs(state),
+            videos: nextVideos,
+            images: state.images || [],
+            pendingJobs: getPendingJobs(state)
+        };
+
+        if (removedVideo.path && shouldDeletePathForNextState(removedVideo.path, nextState)) {
+            moveResult = moveFileToTrash(removedVideo.path);
+            if (moveResult && moveResult.ok && moveResult.moved) {
+                removedFiles.push({
+                    originalPath: moveResult.originalPath,
+                    trashPath: moveResult.trashPath
+                });
+            }
+        }
+
+        pushUndoDeleteAction("Video delete", buildUndoDeleteSnapshot(state), removedFiles);
+
         window.VeoBridgeState.updateState({
             videos: nextVideos,
             selectedVideoId: nextSelected
         });
 
-        setStatus("Video removed.", false);
+        if (removedFiles.length > 0) {
+            setStatus("Video moved to VeoBridge trash.", false);
+            return;
+        }
+        setStatus("Video removed from gallery list.", false);
     }
 
     function importSelectedImage(imageIdOverride) {
@@ -6601,6 +7412,9 @@
         var nextSelected = null;
         var removedImage = null;
         var preferredSelectedId = state.selectedImageId;
+        var removedFiles = [];
+        var moveResult = null;
+        var nextState;
 
         if (!selectedId) {
             setStatus("Select a generated image first.", true);
@@ -6620,8 +7434,6 @@
             return;
         }
 
-        pushUndoDeleteAction("Image delete", buildUndoDeleteSnapshot(state));
-
         if (nextImages.length) {
             if (preferredSelectedId && preferredSelectedId !== selectedId && findImageById(nextImages, preferredSelectedId)) {
                 nextSelected = preferredSelectedId;
@@ -6630,12 +7442,40 @@
             }
         }
 
+        nextState = {
+            shots: state.shots || [],
+            selectedShotId: state.selectedShotId || null,
+            startShotId: state.startShotId || null,
+            endShotId: state.endShotId || null,
+            refs: state.refs || [],
+            videoRefs: getVideoRefs(state),
+            videos: state.videos || [],
+            images: nextImages,
+            pendingJobs: getPendingJobs(state)
+        };
+
+        if (removedImage.path && shouldDeletePathForNextState(removedImage.path, nextState)) {
+            moveResult = moveFileToTrash(removedImage.path);
+            if (moveResult && moveResult.ok && moveResult.moved) {
+                removedFiles.push({
+                    originalPath: moveResult.originalPath,
+                    trashPath: moveResult.trashPath
+                });
+            }
+        }
+
+        pushUndoDeleteAction("Image delete", buildUndoDeleteSnapshot(state), removedFiles);
+
         window.VeoBridgeState.updateState({
             images: nextImages,
             selectedImageId: nextSelected
         });
 
-        setStatus("Image removed.", false);
+        if (removedFiles.length > 0) {
+            setStatus("Image moved to VeoBridge trash.", false);
+            return;
+        }
+        setStatus("Image removed from gallery list.", false);
     }
 
     function removeReferenceById(refId) {
@@ -7771,6 +8611,7 @@
         var btnMediaPreviewToFrames = getById("btnMediaPreviewToFrames");
         var btnMediaPreviewReveal = getById("btnMediaPreviewReveal");
         var btnMediaPreviewDelete = getById("btnMediaPreviewDelete");
+        var btnCleanup = getById("btnCleanup");
         var btnUndoDelete = getById("btnUndoDelete");
         var btnSetStart = getById("btnSetStart");
         var btnSetEnd = getById("btnSetEnd");
@@ -8081,6 +8922,9 @@
         if (btnUndoDelete) {
             btnUndoDelete.addEventListener("click", undoLastDeleteAction);
         }
+        if (btnCleanup) {
+            btnCleanup.addEventListener("click", runCleanup);
+        }
 
         if (modelSelect) {
             modelSelect.addEventListener("change", function () {
@@ -8191,10 +9035,12 @@
             try {
                 path = require("path");
                 fs = require("fs");
+                os = require("os");
                 childProcess = require("child_process");
             } catch (error) {
                 path = null;
                 fs = null;
+                os = null;
                 childProcess = null;
             }
         }
