@@ -2,7 +2,10 @@
     "use strict";
 
     var POLL_INTERVAL_MS = 750;
+    var STATE_VERSION_NONE = 0;
+    var LATEST_STATE_VERSION = 2;
     var DEFAULT_STATE = {
+        stateVersion: LATEST_STATE_VERSION,
         shots: [],
         selectedShotId: null,
         startShotId: null,
@@ -260,8 +263,106 @@
         };
     }
 
+    function _toStateVersion(value) {
+        var parsed = parseInt(value, 10);
+        if (!isFinite(parsed) || parsed < STATE_VERSION_NONE) {
+            return STATE_VERSION_NONE;
+        }
+        return parsed;
+    }
+
+    function _migrateStateToV1(candidate) {
+        var next = candidate && typeof candidate === "object" ? _cloneJson(candidate) : {};
+        if (!next || typeof next !== "object") {
+            next = {};
+        }
+
+        if (!(next.videoRefs && next.videoRefs instanceof Array)) {
+            next.videoRefs = [];
+        }
+        if (!(next.pendingJobs && next.pendingJobs instanceof Array)) {
+            next.pendingJobs = [];
+        }
+        if (!next.pendingJobsLease || typeof next.pendingJobsLease !== "object") {
+            next.pendingJobsLease = null;
+        }
+        if (!(next.videos && next.videos instanceof Array)) {
+            next.videos = [];
+        }
+        if (typeof next.selectedVideoId === "undefined") {
+            next.selectedVideoId = null;
+        }
+        if (!(next.images && next.images instanceof Array)) {
+            next.images = [];
+        }
+        if (typeof next.selectedImageId === "undefined") {
+            next.selectedImageId = null;
+        }
+        if (!(next.refs && next.refs instanceof Array)) {
+            next.refs = [];
+        }
+        if (!next.videoGenSettings || typeof next.videoGenSettings !== "object") {
+            next.videoGenSettings = _cloneJson(DEFAULT_STATE.videoGenSettings);
+        }
+        if (!next.imageGenSettings || typeof next.imageGenSettings !== "object") {
+            next.imageGenSettings = _cloneJson(DEFAULT_STATE.imageGenSettings);
+        }
+
+        next.stateVersion = 1;
+        return next;
+    }
+
+    function _migrateStateToV2(candidate) {
+        var next = candidate && typeof candidate === "object" ? _cloneJson(candidate) : {};
+        if (!next || typeof next !== "object") {
+            next = {};
+        }
+
+        if (next.videoGenSettings && next.videoGenSettings.mode) {
+            if (next.videoGenSettings.mode === "image" || next.videoGenSettings.mode === "interpolation") {
+                next.videoGenSettings.mode = "frames";
+            }
+        }
+        if (next.videos && next.videos instanceof Array) {
+            var i;
+            var mode;
+            for (i = 0; i < next.videos.length; i += 1) {
+                if (!next.videos[i] || typeof next.videos[i] !== "object") {
+                    continue;
+                }
+                mode = next.videos[i].mode;
+                if (mode === "image" || mode === "interpolation") {
+                    next.videos[i].mode = "frames";
+                }
+            }
+        }
+
+        next.stateVersion = 2;
+        return next;
+    }
+
+    function _migrateState(candidate) {
+        var migrated = candidate && typeof candidate === "object" ? _cloneJson(candidate) : {};
+        var version = _toStateVersion(migrated && migrated.stateVersion);
+
+        if (version < 1) {
+            migrated = _migrateStateToV1(migrated);
+            version = 1;
+        }
+        if (version < 2) {
+            migrated = _migrateStateToV2(migrated);
+            version = 2;
+        }
+
+        if (!migrated || typeof migrated !== "object") {
+            migrated = {};
+        }
+        migrated.stateVersion = LATEST_STATE_VERSION;
+        return migrated;
+    }
+
     function _normalizeState(candidate) {
-        var input = candidate || {};
+        var input = _migrateState(candidate || {});
         var shots = [];
         var pendingJobs = [];
         var videos = [];
@@ -300,6 +401,7 @@
         }
 
         return {
+            stateVersion: LATEST_STATE_VERSION,
             shots: shots,
             selectedShotId: input.selectedShotId || null,
             startShotId: input.startShotId || null,
@@ -549,6 +651,7 @@
         updateState: function (patch) {
             var base = _readStateFromDisk();
             var next = {
+                stateVersion: base.stateVersion || LATEST_STATE_VERSION,
                 shots: base.shots,
                 selectedShotId: base.selectedShotId,
                 startShotId: base.startShotId,

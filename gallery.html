@@ -13,6 +13,7 @@
                 <h1 class="title">Veo Bridge Studio</h1>
             </div>
             <div class="gallery-topbar-actions">
+                <button id="btnDiagnostics" type="button">Diagnostics...</button>
                 <button id="btnCleanup" type="button">Cleanup...</button>
                 <button id="btnUndoDelete" type="button" disabled>Undo Delete</button>
                 <button id="btnClose" type="button">Close</button>
@@ -245,6 +246,19 @@
                     </div>
                 </div>
             </div>
+
+            <div id="diagnosticsConfirmModal" class="modal-backdrop" hidden>
+                <div class="modal-card">
+                    <h2 class="modal-title">Export Diagnostics Bundle?</h2>
+                    <p class="muted-note">
+                        Export one zip with logs, state snapshot, and environment details.
+                    </p>
+                    <div class="modal-actions">
+                        <button id="btnDiagnosticsCancel" type="button">Cancel</button>
+                        <button id="btnDiagnosticsExport" type="button">Export Diagnostics</button>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section id="panelImage" class="tab-panel flow-panel ghost-hidden" data-panel-kind="image" hidden>
@@ -298,6 +312,10 @@
     <script src="./js/sharedState.js"></script>
     <script src="./js/settingsStore.js"></script>
     <script src="./js/veoApi.js"></script>
+    <script src="./js/gallery/state-adapter.js"></script>
+    <script src="./js/gallery/queue.js"></script>
+    <script src="./js/gallery/render.js"></script>
+    <script src="./js/gallery/actions.js"></script>
     <script src="./js/gallery.js"></script>
 </body>
 </html>

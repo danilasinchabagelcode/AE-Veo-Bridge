@@ -92,6 +92,11 @@
     var SMOOTH_PROGRESS_TICK_MS = 40 * SMOOTH_PROGRESS_SLOWDOWN_MULTIPLIER;
     var SMOOTH_PROGRESS_SYNTH_MAX_PERCENT = 90;
     var UNDO_DELETE_STACK_LIMIT = 10;
+    var galleryModulesRoot = window.VeoBridgeGalleryModules || {};
+    var stateAdapter = null;
+    var queueAdapter = null;
+    var renderAdapter = null;
+    var actionsAdapter = null;
 
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
@@ -117,34 +122,131 @@
         return document.getElementById(id);
     }
 
+    function getActionsAdapter() {
+        if (!actionsAdapter && galleryModulesRoot.actions && typeof galleryModulesRoot.actions.create === "function") {
+            try {
+                actionsAdapter = galleryModulesRoot.actions.create({
+                    getById: getById,
+                    setStatus: setStatus,
+                    stateAdapter: getStateAdapter(),
+                    queueAdapter: getQueueAdapter(),
+                    getLoadedSettings: getLoadedSettingsSafe,
+                    getHostPaths: function () {
+                        return hostPaths;
+                    },
+                    revealPathInExplorer: revealPathInExplorer
+                });
+            } catch (createError) {
+                actionsAdapter = null;
+            }
+        }
+        return actionsAdapter;
+    }
+
+    function logDiagnostics(level, message, payload) {
+        var adapter = getActionsAdapter();
+        if (!adapter || typeof adapter.appendLog !== "function") {
+            return;
+        }
+        adapter.appendLog(level, message, payload || null);
+    }
+
+    function getStateAdapter() {
+        if (!stateAdapter && galleryModulesRoot.stateAdapter && typeof galleryModulesRoot.stateAdapter.create === "function") {
+            try {
+                stateAdapter = galleryModulesRoot.stateAdapter.create({
+                    stateApi: window.VeoBridgeState,
+                    logger: logDiagnostics
+                });
+            } catch (stateAdapterError) {
+                stateAdapter = null;
+            }
+        }
+        return stateAdapter;
+    }
+
+    function getQueueAdapter() {
+        if (!queueAdapter && galleryModulesRoot.queue && typeof galleryModulesRoot.queue.create === "function") {
+            try {
+                queueAdapter = galleryModulesRoot.queue.create();
+            } catch (queueAdapterError) {
+                queueAdapter = null;
+            }
+        }
+        return queueAdapter;
+    }
+
+    function getRenderAdapter() {
+        if (!renderAdapter && galleryModulesRoot.render && typeof galleryModulesRoot.render.create === "function") {
+            try {
+                renderAdapter = galleryModulesRoot.render.create({
+                    getById: getById,
+                    logger: logDiagnostics
+                });
+            } catch (renderAdapterError) {
+                renderAdapter = null;
+            }
+        }
+        return renderAdapter;
+    }
+
+    function stateAdapterUpdate(patch) {
+        var adapter = getStateAdapter();
+        if (adapter && typeof adapter.updateState === "function") {
+            return adapter.updateState(patch || {});
+        }
+        if (window.VeoBridgeState && typeof window.VeoBridgeState.updateState === "function") {
+            return window.VeoBridgeState.updateState(patch || {});
+        }
+        throw new Error("VeoBridgeState.updateState is unavailable.");
+    }
+
     function setStatus(text, isError) {
         var el = getById("galleryStatus");
+        var adapter = getRenderAdapter();
         if (!el) {
+            return;
+        }
+        if (adapter && typeof adapter.setLine === "function") {
+            adapter.setLine("galleryStatus", text, !!isError, "status-line");
             return;
         }
         el.textContent = text;
         el.className = isError ? "status-line is-error" : "status-line";
+        logDiagnostics(isError ? "error" : "info", "gallery.status", { text: String(text || "") });
     }
 
     function setGenerationStatus(text, isError) {
         var el = getById("generationStatus");
+        var adapter = getRenderAdapter();
         if (!el) {
+            return;
+        }
+        if (adapter && typeof adapter.setLine === "function") {
+            adapter.setLine("generationStatus", text, !!isError, "inline-status");
             return;
         }
         el.textContent = text;
         el.className = isError ? "inline-status is-error" : "inline-status";
+        logDiagnostics(isError ? "error" : "info", "gallery.generationStatus", { text: String(text || "") });
     }
 
     function setImageGenerationStatus(text, isError) {
         var el = getById("imageGenerationStatus");
+        var adapter = getRenderAdapter();
         if (!el) {
             if (activeGenerationType === GEN_TYPE_IMAGE) {
                 setGenerationStatus(text, isError);
             }
             return;
         }
-        el.textContent = text;
-        el.className = isError ? "inline-status is-error" : "inline-status";
+        if (adapter && typeof adapter.setLine === "function") {
+            adapter.setLine("imageGenerationStatus", text, !!isError, "inline-status");
+        } else {
+            el.textContent = text;
+            el.className = isError ? "inline-status is-error" : "inline-status";
+            logDiagnostics(isError ? "error" : "info", "gallery.imageGenerationStatus", { text: String(text || "") });
+        }
         if (activeGenerationType === GEN_TYPE_IMAGE) {
             setGenerationStatus(text, isError);
         }
@@ -1141,7 +1243,7 @@
         undoDeleteStack = [];
         updateUndoDeleteButtonState();
 
-        window.VeoBridgeState.updateState(pruneResult.patch);
+        stateAdapterUpdate(pruneResult.patch);
 
         parts.push("State cleaned");
         parts.push("shots -" + String(pruneStats.removedShots));
@@ -1865,6 +1967,10 @@
     }
 
     function getState() {
+        var adapter = getStateAdapter();
+        if (adapter && typeof adapter.getState === "function") {
+            return adapter.getState();
+        }
         return window.VeoBridgeState.getState();
     }
 
@@ -1944,7 +2050,7 @@
                 missing += 1;
             }
         }
-        window.VeoBridgeState.updateState(entry.snapshot);
+        stateAdapterUpdate(entry.snapshot);
         if (missing > 0) {
             setStatus("Undo complete with warnings: restored " + restored + " file(s), " + missing + " file(s) could not be restored.", true);
             return;
@@ -2083,7 +2189,7 @@
 
         videoRefSlotIndex = parseRefSlotIndex(shotPickerContext, "videoRefSlot");
         if (videoRefSlotIndex !== null) {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 selectedShotId: shotId
             });
             addShotToVideoRefsById(shotId, videoRefSlotIndex);
@@ -2093,7 +2199,7 @@
 
         imageRefSlotIndex = parseRefSlotIndex(shotPickerContext, "imageRefSlot");
         if (imageRefSlotIndex !== null) {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 selectedShotId: shotId
             });
             addShotToRefsById(shotId, imageRefSlotIndex);
@@ -2102,7 +2208,7 @@
         }
 
         if (shotPickerContext === "videoStart") {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 selectedShotId: shotId,
                 startShotId: shotId
             });
@@ -2111,7 +2217,7 @@
             return true;
         }
         if (shotPickerContext === "videoEnd") {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 selectedShotId: shotId,
                 endShotId: shotId
             });
@@ -2120,7 +2226,7 @@
             return true;
         }
         if (shotPickerContext === "videoRef") {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 selectedShotId: shotId
             });
             addShotToVideoRefsById(shotId);
@@ -2128,7 +2234,7 @@
             return true;
         }
         if (shotPickerContext === "imageRef") {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 selectedShotId: shotId
             });
             addShotToRefsById(shotId);
@@ -2167,7 +2273,7 @@
     }
 
     function writePendingJobsLease(lease) {
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             pendingJobsLease: lease || null
         });
     }
@@ -2295,7 +2401,7 @@
             next = jobs;
         }
         next = trimPendingJobs(next);
-        window.VeoBridgeState.updateState({ pendingJobs: next });
+        stateAdapterUpdate({ pendingJobs: next });
         return next;
     }
 
@@ -2588,7 +2694,7 @@
         }
 
         if (changed) {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 pendingJobs: trimPendingJobs(nextJobs)
             });
         }
@@ -2817,7 +2923,7 @@
                     nextState = getState();
                     shots = nextState.shots ? nextState.shots.slice(0) : [];
                     shots.push(shotData);
-                    window.VeoBridgeState.updateState({
+                    stateAdapterUpdate({
                         shots: shots,
                         selectedShotId: shotData.id
                     });
@@ -3215,7 +3321,7 @@
                 if (applyPickedShotById(shotId)) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedShotId: shotId });
+                stateAdapterUpdate({ selectedShotId: shotId });
             });
 
             item.addEventListener("keydown", function (event) {
@@ -3228,7 +3334,7 @@
                     if (typeof event.preventDefault === "function") {
                         event.preventDefault();
                     }
-                    window.VeoBridgeState.updateState({ selectedShotId: shotId });
+                    stateAdapterUpdate({ selectedShotId: shotId });
                 }
             });
 
@@ -3337,7 +3443,7 @@
                 if (applyPickedShotById(shotId)) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedShotId: shotId });
+                stateAdapterUpdate({ selectedShotId: shotId });
             });
 
             item.addEventListener("keydown", function (event) {
@@ -3350,7 +3456,7 @@
                     if (typeof event.preventDefault === "function") {
                         event.preventDefault();
                     }
-                    window.VeoBridgeState.updateState({ selectedShotId: shotId });
+                    stateAdapterUpdate({ selectedShotId: shotId });
                 }
             });
 
@@ -4086,7 +4192,7 @@
                 setSelectValueIfExists(imageSizeSelect, normalizeImageSize(group.imageSize));
             }
             imageRefs = buildRefEntriesFromGroup(group, state, UI_MAX_REFERENCE_IMAGES);
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 startShotId: null,
                 endShotId: null,
                 videoRefs: [],
@@ -4127,14 +4233,14 @@
                 } else if (group.endShotPath) {
                     endShotId = (findShotByPath(state.shots || [], group.endShotPath) || {}).id || null;
                 }
-                window.VeoBridgeState.updateState({
+                stateAdapterUpdate({
                     startShotId: startShotId,
                     endShotId: endShotId,
                     videoRefs: []
                 });
             } else {
                 videoRefs = buildRefEntriesFromGroup(group, state, UI_MAX_VIDEO_REFERENCE_IMAGES);
-                window.VeoBridgeState.updateState({
+                stateAdapterUpdate({
                     startShotId: null,
                     endShotId: null,
                     videoRefs: videoRefs
@@ -4165,7 +4271,7 @@
                 return;
             }
             if (mediaKind === "video") {
-                window.VeoBridgeState.updateState({ selectedVideoId: mediaId });
+                stateAdapterUpdate({ selectedVideoId: mediaId });
                 if (actionId === "import") {
                     importSelectedVideo(mediaId);
                     return;
@@ -4178,7 +4284,7 @@
                 return;
             }
 
-            window.VeoBridgeState.updateState({ selectedImageId: mediaId });
+            stateAdapterUpdate({ selectedImageId: mediaId });
             if (actionId === "import") {
                 importSelectedImage(mediaId);
                 return;
@@ -4223,7 +4329,7 @@
             next.push(item);
         }
         if (removedCount > 0) {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 pendingJobs: trimPendingJobs(next)
             });
         }
@@ -4454,10 +4560,10 @@
                         return;
                     }
                     if (kind === "video") {
-                        window.VeoBridgeState.updateState({ selectedVideoId: id });
+                        stateAdapterUpdate({ selectedVideoId: id });
                         openMediaPreview("video", id);
                     } else if (kind === "image") {
-                        window.VeoBridgeState.updateState({ selectedImageId: id });
+                        stateAdapterUpdate({ selectedImageId: id });
                         openMediaPreview("image", id);
                     }
                 });
@@ -4963,7 +5069,7 @@
                 if (!imageId) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedImageId: imageId });
+                stateAdapterUpdate({ selectedImageId: imageId });
                 importSelectedImage();
             });
             actionsWrap.appendChild(actionBtn);
@@ -4984,7 +5090,7 @@
                 if (!imageId) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedImageId: imageId });
+                stateAdapterUpdate({ selectedImageId: imageId });
                 addSelectedImageToFrames();
             });
             actionsWrap.appendChild(actionBtn);
@@ -5005,7 +5111,7 @@
                 if (!imageId) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedImageId: imageId });
+                stateAdapterUpdate({ selectedImageId: imageId });
                 revealSelectedImage();
             });
             actionsWrap.appendChild(actionBtn);
@@ -5026,7 +5132,7 @@
                 if (!imageId) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedImageId: imageId });
+                stateAdapterUpdate({ selectedImageId: imageId });
                 deleteSelectedImage();
             });
             actionsWrap.appendChild(actionBtn);
@@ -5039,7 +5145,7 @@
                 if (!imageId) {
                     return;
                 }
-                window.VeoBridgeState.updateState({ selectedImageId: imageId });
+                stateAdapterUpdate({ selectedImageId: imageId });
             });
 
             item.addEventListener("keydown", function (event) {
@@ -5052,7 +5158,7 @@
                     if (typeof event.preventDefault === "function") {
                         event.preventDefault();
                     }
-                    window.VeoBridgeState.updateState({ selectedImageId: imageId });
+                    stateAdapterUpdate({ selectedImageId: imageId });
                 }
             });
 
@@ -5634,7 +5740,7 @@
         }
 
         if (hasPatch) {
-            window.VeoBridgeState.updateState(patch);
+            stateAdapterUpdate(patch);
             return true;
         }
 
@@ -5908,7 +6014,7 @@
 
         videos.unshift(videoRecord);
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             videos: videos,
             selectedVideoId: videoRecord.id
         });
@@ -5947,7 +6053,7 @@
 
         images.unshift(imageRecord);
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             images: images,
             selectedImageId: imageRecord.id
         });
@@ -6928,7 +7034,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ startShotId: state.selectedShotId });
+        stateAdapterUpdate({ startShotId: state.selectedShotId });
         setStatus("Start frame set.", false);
     }
 
@@ -6939,7 +7045,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ endShotId: state.selectedShotId });
+        stateAdapterUpdate({ endShotId: state.selectedShotId });
         setStatus("End frame set.", false);
     }
 
@@ -6950,7 +7056,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ startShotId: null });
+        stateAdapterUpdate({ startShotId: null });
         setStatus("Start frame cleared.", false);
     }
 
@@ -6961,7 +7067,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ endShotId: null });
+        stateAdapterUpdate({ endShotId: null });
         setStatus("End frame cleared.", false);
     }
 
@@ -6975,7 +7081,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             startShotId: endShotId,
             endShotId: startShotId
         });
@@ -7063,7 +7169,7 @@
 
         pushUndoDeleteAction("Frame delete", buildUndoDeleteSnapshot(state), removedFiles);
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             shots: nextShots,
             selectedShotId: nextSelected,
             startShotId: state.startShotId === selectedId ? null : state.startShotId,
@@ -7361,7 +7467,7 @@
             return false;
         }
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             shots: shots,
             refs: refs,
             videoRefs: videoRefs,
@@ -7614,7 +7720,7 @@
 
         pushUndoDeleteAction("Video delete", buildUndoDeleteSnapshot(state), removedFiles);
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             videos: nextVideos,
             selectedVideoId: nextSelected
         });
@@ -7746,7 +7852,7 @@
             };
 
             shots.push(shot);
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 shots: shots,
                 selectedShotId: shot.id
             });
@@ -7850,7 +7956,7 @@
 
         pushUndoDeleteAction("Image delete", buildUndoDeleteSnapshot(state), removedFiles);
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             images: nextImages,
             selectedImageId: nextSelected
         });
@@ -7885,7 +7991,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ refs: next });
+        stateAdapterUpdate({ refs: next });
         setStatus("Reference image removed.", false);
     }
 
@@ -7912,7 +8018,7 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ videoRefs: next });
+        stateAdapterUpdate({ videoRefs: next });
         setStatus("Video reference removed.", false);
     }
 
@@ -8021,7 +8127,7 @@
                 (shot.compName || baseName(shot.path) || "Frame") + " | frame " + (shot.frame != null ? shot.frame : "-")
             );
         }
-        window.VeoBridgeState.updateState({ refs: refs });
+        stateAdapterUpdate({ refs: refs });
         setStatus(hasSlotIndex ? "Reference slot updated." : "Frame added to Reference Images.", false);
     }
 
@@ -8067,7 +8173,7 @@
                 (shot.compName || baseName(shot.path) || "Frame") + " | frame " + (shot.frame != null ? shot.frame : "-")
             );
         }
-        window.VeoBridgeState.updateState({ videoRefs: refs });
+        stateAdapterUpdate({ videoRefs: refs });
         setStatus(hasSlotIndex ? "Video reference slot updated." : "Frame added to Video References.", false);
     }
 
@@ -8148,17 +8254,17 @@
             return;
         }
 
-        window.VeoBridgeState.updateState({ refs: refs });
+        stateAdapterUpdate({ refs: refs });
         setStatus("Added " + added + " reference image(s).", false);
     }
 
     function clearReferences() {
-        window.VeoBridgeState.updateState({ refs: [] });
+        stateAdapterUpdate({ refs: [] });
         setStatus("Reference images cleared.", false);
     }
 
     function clearVideoReferences() {
-        window.VeoBridgeState.updateState({ videoRefs: [] });
+        stateAdapterUpdate({ videoRefs: [] });
         setStatus("Video reference images cleared.", false);
     }
 
@@ -8624,7 +8730,7 @@
         }
 
         if (shots[nextIndex] && shots[nextIndex].id !== state.selectedShotId) {
-            window.VeoBridgeState.updateState({ selectedShotId: shots[nextIndex].id });
+            stateAdapterUpdate({ selectedShotId: shots[nextIndex].id });
         }
     }
 
@@ -8659,7 +8765,7 @@
         }
 
         if (videos[nextIndex] && videos[nextIndex].id !== state.selectedVideoId) {
-            window.VeoBridgeState.updateState({ selectedVideoId: videos[nextIndex].id });
+            stateAdapterUpdate({ selectedVideoId: videos[nextIndex].id });
         }
     }
 
@@ -8694,7 +8800,7 @@
         }
 
         if (images[nextIndex] && images[nextIndex].id !== state.selectedImageId) {
-            window.VeoBridgeState.updateState({ selectedImageId: images[nextIndex].id });
+            stateAdapterUpdate({ selectedImageId: images[nextIndex].id });
         }
     }
 
@@ -8822,7 +8928,7 @@
         }
         activeGenerationType = normalizeGenerationType(savedGenType);
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             videoGenSettings: {
                 mode: normalizeVideoMode(savedMode || currentVideoSettings.mode || VIDEO_MODE_FRAMES),
                 model: trimText(modelSelect ? modelSelect.value : currentVideoSettings.model) || "veo-3.1-generate-preview",
@@ -8833,7 +8939,7 @@
         });
 
         if (state && (!state.imageGenSettings || !state.imageGenSettings.model)) {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 imageGenSettings: {
                     model: window.VeoApi ? window.VeoApi.DEFAULT_IMAGE_MODEL_ID : "gemini-3.1-flash-image-preview",
                     aspectRatio: "1:1",
@@ -8852,7 +8958,7 @@
         var aspectSelect = getById("imageAspectRatioSelect");
         var sizeSelect = getById("imageSizeSelect");
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             imageGenSettings: {
                 model: trimText(modelSelect ? modelSelect.value : "") || current.model || "gemini-3.1-flash-image-preview",
                 aspectRatio: normalizeImageAspectRatio(aspectSelect ? aspectSelect.value : current.aspectRatio || "1:1"),
@@ -8872,7 +8978,7 @@
             resolution: "720p"
         };
 
-        window.VeoBridgeState.updateState({
+        stateAdapterUpdate({
             videoGenSettings: next
         });
     }
@@ -8884,7 +8990,7 @@
         persistVideoGenSettings({ mode: nextMode });
 
         if (currentMode !== nextMode) {
-            window.VeoBridgeState.updateState({
+            stateAdapterUpdate({
                 startShotId: null,
                 endShotId: null,
                 videoRefs: []
@@ -9000,6 +9106,7 @@
         var btnCleanupConfirm = getById("btnCleanupConfirm");
         var btnCleanup = getById("btnCleanup");
         var btnUndoDelete = getById("btnUndoDelete");
+        var diagnosticsConfirmModal = getById("diagnosticsConfirmModal");
         var btnSetStart = getById("btnSetStart");
         var btnSetEnd = getById("btnSetEnd");
         var btnClearStart = getById("btnClearStart");
@@ -9169,7 +9276,7 @@
                 var previous = activeGenerationType;
                 activeGenerationType = GEN_TYPE_IMAGE;
                 if (previous !== activeGenerationType) {
-                    window.VeoBridgeState.updateState({
+                    stateAdapterUpdate({
                         startShotId: null,
                         endShotId: null,
                         videoRefs: [],
@@ -9190,7 +9297,7 @@
                 var previous = activeGenerationType;
                 activeGenerationType = GEN_TYPE_VIDEO;
                 if (previous !== activeGenerationType) {
-                    window.VeoBridgeState.updateState({
+                    stateAdapterUpdate({
                         startShotId: null,
                         endShotId: null,
                         videoRefs: [],
@@ -9432,6 +9539,14 @@
                     setStatus("Cleanup canceled.", false);
                     return;
                 }
+                if (diagnosticsConfirmModal && !diagnosticsConfirmModal.hidden) {
+                    var diagnosticsActions = getActionsAdapter();
+                    if (diagnosticsActions && typeof diagnosticsActions.closeDiagnosticsModal === "function") {
+                        diagnosticsActions.closeDiagnosticsModal();
+                    }
+                    setStatus("Diagnostics export canceled.", false);
+                    return;
+                }
                 if (mediaPreviewOverlay && !mediaPreviewOverlay.hidden) {
                     closeMediaPreview();
                 }
@@ -9463,6 +9578,10 @@
         startWindowSizeWatcher();
 
         bindActions();
+        var localActionsAdapter = getActionsAdapter();
+        if (localActionsAdapter && typeof localActionsAdapter.bindUi === "function") {
+            localActionsAdapter.bindUi();
+        }
         bindCarouselBehavior();
         bindRefsDropZone();
         bindVideoRefsDropZone();
