@@ -345,16 +345,6 @@
                 opened = false;
             }
         }
-        if (!opened && osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
-            try {
-                bridge.requestOpenExtension("com.veobridge.gallery", "");
-                opened = true;
-                usedStrategy = "win:requestOpenExtension";
-            } catch (requestOpenWinError) {
-                opened = false;
-            }
-        }
-
         if (opened) {
             endGalleryOpenAttempt();
             setStatus(withOpenDebug("Gallery opened.", usedStrategy || primaryStrategy), false);
