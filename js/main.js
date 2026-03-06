@@ -256,6 +256,7 @@
         var bridge = ensureCs();
         var galleryWidth = 1180;
         var galleryHeight = 820;
+        var galleryUrl = "gallery.html";
         var settings;
         var features;
         var osFamily = getHostOsFamily();
@@ -290,6 +291,16 @@
             galleryHeight = 620;
         }
         features = "width=" + galleryWidth + ",height=" + galleryHeight + ",resizable=yes,scrollbars=yes";
+        try {
+            if (window.location && window.location.href) {
+                galleryUrl = String(window.location.href).replace(/index\.html(?:[?#].*)?$/i, "gallery.html");
+            }
+        } catch (urlError) {
+            galleryUrl = "gallery.html";
+        }
+        if (!galleryUrl) {
+            galleryUrl = "gallery.html";
+        }
 
         if (galleryWindowRef && !galleryWindowRef.closed) {
             popup = galleryWindowRef;
@@ -334,6 +345,15 @@
                 opened = false;
             }
         }
+        if (!opened && osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
+            try {
+                bridge.requestOpenExtension("com.veobridge.gallery", "");
+                opened = true;
+                usedStrategy = "win:requestOpenExtension";
+            } catch (requestOpenWinError) {
+                opened = false;
+            }
+        }
 
         if (opened) {
             endGalleryOpenAttempt();
@@ -343,7 +363,10 @@
 
         // Windows path (and non-mac fallback): open popup directly.
         try {
-            popup = window.open("gallery.html", "VeoBridgeGallery", features);
+            popup = window.open(galleryUrl, "VeoBridgeGallery", features);
+            if (!popup) {
+                popup = window.open("gallery.html", "VeoBridgeGallery", features);
+            }
             opened = !!popup;
         } catch (openError) {
             opened = false;
