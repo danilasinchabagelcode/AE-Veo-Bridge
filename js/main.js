@@ -345,50 +345,56 @@
                 opened = false;
             }
         }
-        if (!opened && osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
-            try {
-                bridge.requestOpenExtension("com.veobridge.gallery", "");
-                opened = true;
-                usedStrategy = "win:requestOpenExtension";
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryWinError) {
-                        // ignore
-                    }
-                }, 140);
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryWinError2) {
-                        // ignore
-                    }
-                }, 320);
-            } catch (requestOpenWinError) {
-                opened = false;
-            }
-        }
-
         if (opened) {
             endGalleryOpenAttempt();
             setStatus(withOpenDebug("Gallery opened.", usedStrategy || primaryStrategy), false);
             return;
         }
 
-        // Fallback path when CEP open-extension is unavailable.
-        try {
-            popup = window.open(galleryUrl, "VeoBridgeGallery", features);
-            if (!popup) {
-                popup = window.open("gallery.html", "VeoBridgeGallery", features);
+        // Windows path: open a blank popup first, then navigate it to the gallery URL.
+        if (osFamily === "win") {
+            try {
+                popup = window.open("", "VeoBridgeGallery", features);
+                if (popup && !popup.closed) {
+                    opened = true;
+                    usedStrategy = "win:window.open";
+                    try {
+                        if (popup.location && typeof popup.location.replace === "function") {
+                            popup.location.replace(galleryUrl);
+                        } else {
+                            popup.location.href = galleryUrl;
+                        }
+                    } catch (navigateError) {
+                        try {
+                            popup.location.href = galleryUrl;
+                        } catch (navigateError2) {
+                            // ignore
+                        }
+                    }
+                }
+            } catch (winPopupError) {
+                opened = false;
             }
-            opened = !!popup;
-        } catch (openError) {
-            opened = false;
+        }
+
+        if (!opened) {
+            // Fallback path when CEP open-extension is unavailable.
+            try {
+                popup = window.open(galleryUrl, "VeoBridgeGallery", features);
+                if (!popup) {
+                    popup = window.open("gallery.html", "VeoBridgeGallery", features);
+                }
+                opened = !!popup;
+            } catch (openError) {
+                opened = false;
+            }
         }
 
         if (opened) {
             galleryWindowRef = popup;
-            usedStrategy = primaryStrategy;
+            if (!usedStrategy) {
+                usedStrategy = primaryStrategy;
+            }
             try {
                 if (popup && typeof popup.resizeTo === "function") {
                     popup.resizeTo(galleryWidth, galleryHeight);
@@ -415,12 +421,25 @@
                     window.setTimeout(function () {
                         try {
                             if (!popup.closed && popup.location && String(popup.location.href || "").indexOf("gallery.html") < 0) {
-                                popup.location.href = "gallery.html";
+                                if (typeof popup.location.replace === "function") {
+                                    popup.location.replace(galleryUrl);
+                                } else {
+                                    popup.location.href = galleryUrl;
+                                }
                             }
                         } catch (hrefError) {
                             // ignore
                         }
                     }, 100);
+                    window.setTimeout(function () {
+                        try {
+                            if (!popup.closed && popup.location && String(popup.location.href || "").indexOf("gallery.html") < 0) {
+                                popup.location.href = galleryUrl;
+                            }
+                        } catch (hrefError2) {
+                            // ignore
+                        }
+                    }, 260);
                 }
             } catch (resizeError) {
                 // ignore
