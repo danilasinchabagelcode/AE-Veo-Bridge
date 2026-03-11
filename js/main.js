@@ -92,7 +92,7 @@
             return "mac:requestOpenExtension";
         }
         if (osFamily === "win") {
-            return "win:window.open";
+            return "win:requestOpenExtension";
         }
         return "other:window.open";
     }
@@ -351,28 +351,34 @@
             return;
         }
 
-        // Windows path: open a blank popup first, then navigate it to the gallery URL.
-        if (osFamily === "win") {
+        // Windows path: request OpenExtension with longer retry pings.
+        if (osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
             try {
-                popup = window.open("", "VeoBridgeGallery", features);
-                if (popup && !popup.closed) {
-                    opened = true;
-                    usedStrategy = "win:window.open";
+                bridge.requestOpenExtension("com.veobridge.gallery", "");
+                opened = true;
+                usedStrategy = "win:requestOpenExtension";
+                window.setTimeout(function () {
                     try {
-                        if (popup.location && typeof popup.location.replace === "function") {
-                            popup.location.replace(galleryUrl);
-                        } else {
-                            popup.location.href = galleryUrl;
-                        }
-                    } catch (navigateError) {
-                        try {
-                            popup.location.href = galleryUrl;
-                        } catch (navigateError2) {
-                            // ignore
-                        }
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryWinError) {
+                        // ignore
                     }
-                }
-            } catch (winPopupError) {
+                }, 220);
+                window.setTimeout(function () {
+                    try {
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryWinError2) {
+                        // ignore
+                    }
+                }, 520);
+                window.setTimeout(function () {
+                    try {
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryWinError3) {
+                        // ignore
+                    }
+                }, 980);
+            } catch (requestOpenWinError) {
                 opened = false;
             }
         }
@@ -415,31 +421,6 @@
                             // ignore
                         }
                     }, 80);
-                }
-                // Windows/CEF sometimes opens a blank named window; force target page if needed.
-                if (popup && osFamily === "win") {
-                    window.setTimeout(function () {
-                        try {
-                            if (!popup.closed && popup.location && String(popup.location.href || "").indexOf("gallery.html") < 0) {
-                                if (typeof popup.location.replace === "function") {
-                                    popup.location.replace(galleryUrl);
-                                } else {
-                                    popup.location.href = galleryUrl;
-                                }
-                            }
-                        } catch (hrefError) {
-                            // ignore
-                        }
-                    }, 100);
-                    window.setTimeout(function () {
-                        try {
-                            if (!popup.closed && popup.location && String(popup.location.href || "").indexOf("gallery.html") < 0) {
-                                popup.location.href = galleryUrl;
-                            }
-                        } catch (hrefError2) {
-                            // ignore
-                        }
-                    }, 260);
                 }
             } catch (resizeError) {
                 // ignore
