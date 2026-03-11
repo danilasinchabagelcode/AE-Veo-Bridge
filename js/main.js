@@ -351,7 +351,7 @@
             return;
         }
 
-        // Windows path: request OpenExtension with longer retry pings.
+        // Windows path: request OpenExtension with shorter retry pings.
         if (osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
             try {
                 bridge.requestOpenExtension("com.veobridge.gallery", "");
@@ -363,21 +363,14 @@
                     } catch (retryWinError) {
                         // ignore
                     }
-                }, 220);
+                }, 140);
                 window.setTimeout(function () {
                     try {
                         bridge.requestOpenExtension("com.veobridge.gallery", "");
                     } catch (retryWinError2) {
                         // ignore
                     }
-                }, 520);
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryWinError3) {
-                        // ignore
-                    }
-                }, 980);
+                }, 320);
             } catch (requestOpenWinError) {
                 opened = false;
             }
@@ -421,6 +414,18 @@
                             // ignore
                         }
                     }, 80);
+                }
+                // Windows/CEF sometimes opens a blank named window; force target page if needed.
+                if (popup && osFamily === "win") {
+                    window.setTimeout(function () {
+                        try {
+                            if (!popup.closed && popup.location && String(popup.location.href || "").indexOf("gallery.html") < 0) {
+                                popup.location.href = "gallery.html";
+                            }
+                        } catch (hrefError) {
+                            // ignore
+                        }
+                    }, 100);
                 }
             } catch (resizeError) {
                 // ignore
