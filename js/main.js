@@ -351,26 +351,12 @@
             return;
         }
 
-        // Windows path: request OpenExtension with shorter retry pings.
+        // Windows path: single requestOpenExtension call.
         if (osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
             try {
                 bridge.requestOpenExtension("com.veobridge.gallery", "");
                 opened = true;
                 usedStrategy = "win:requestOpenExtension";
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryWinError) {
-                        // ignore
-                    }
-                }, 140);
-                window.setTimeout(function () {
-                    try {
-                        bridge.requestOpenExtension("com.veobridge.gallery", "");
-                    } catch (retryWinError2) {
-                        // ignore
-                    }
-                }, 320);
             } catch (requestOpenWinError) {
                 opened = false;
             }
