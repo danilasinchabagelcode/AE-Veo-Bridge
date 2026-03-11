@@ -345,13 +345,37 @@
                 opened = false;
             }
         }
+        if (!opened && osFamily === "win" && bridge && typeof bridge.requestOpenExtension === "function") {
+            try {
+                bridge.requestOpenExtension("com.veobridge.gallery", "");
+                opened = true;
+                usedStrategy = "win:requestOpenExtension";
+                window.setTimeout(function () {
+                    try {
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryWinError) {
+                        // ignore
+                    }
+                }, 140);
+                window.setTimeout(function () {
+                    try {
+                        bridge.requestOpenExtension("com.veobridge.gallery", "");
+                    } catch (retryWinError2) {
+                        // ignore
+                    }
+                }, 320);
+            } catch (requestOpenWinError) {
+                opened = false;
+            }
+        }
+
         if (opened) {
             endGalleryOpenAttempt();
             setStatus(withOpenDebug("Gallery opened.", usedStrategy || primaryStrategy), false);
             return;
         }
 
-        // Windows path (and non-mac fallback): open popup directly.
+        // Fallback path when CEP open-extension is unavailable.
         try {
             popup = window.open(galleryUrl, "VeoBridgeGallery", features);
             if (!popup) {
