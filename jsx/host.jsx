@@ -179,14 +179,15 @@
         var bridgeFolder;
         var generatedFolder;
         var framesFolder;
+        var projectBaseFolder = null;
+        var projectBridgeFolder = null;
 
         if (!app || !app.project) {
             return null;
         }
 
-        if (app.project.file) {
-            baseFolder = app.project.file.parent;
-        } else {
+        baseFolder = Folder.userData;
+        if (!baseFolder || !baseFolder.exists) {
             baseFolder = Folder.temp;
         }
 
@@ -200,9 +201,14 @@
             return null;
         }
 
-        framesFolder = _ensureFolder(_joinPath(bridgeFolder.fsName, "Frames"));
+        framesFolder = _ensureFolder(_joinPath(bridgeFolder.fsName, "frames"));
         if (!framesFolder) {
             return null;
+        }
+
+        if (app.project.file) {
+            projectBaseFolder = app.project.file.parent;
+            projectBridgeFolder = _ensureFolder(_joinPath(projectBaseFolder.fsName, "VeoBridge"));
         }
 
         return {
@@ -210,7 +216,9 @@
             bridgeDir: bridgeFolder.fsName,
             generatedDir: generatedFolder.fsName,
             framesDir: framesFolder.fsName,
-            projectSaved: !!app.project.file
+            projectSaved: !!app.project.file,
+            projectBaseDir: projectBaseFolder ? projectBaseFolder.fsName : "",
+            projectBridgeDir: projectBridgeFolder ? projectBridgeFolder.fsName : ""
         };
     }
 
@@ -497,10 +505,6 @@
         var comp = _getActiveComp();
         var paths;
 
-        if (!comp) {
-            return _makeError("NO_ACTIVE_COMP", "Active composition is required.");
-        }
-
         paths = _resolveDiskPaths();
         if (!paths) {
             return _makeError("PATH_INIT_FAILED", "Unable to prepare VeoBridge folders on disk.");
@@ -508,11 +512,11 @@
 
         return _makeResult(true, {
             paths: paths,
-            comp: {
+            comp: comp ? {
                 name: comp.name,
                 time: comp.time,
                 frameRate: comp.frameRate
-            }
+            } : null
         });
     };
 

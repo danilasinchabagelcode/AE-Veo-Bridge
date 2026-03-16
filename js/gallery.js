@@ -454,14 +454,40 @@
         }
     }
 
-    function resolveProjectVideosDir() {
-        var targetDir;
+    function resolveLibraryVideosDir() {
+        var targetDir = path.join(resolveUserDataBridgeDir(), "videos");
 
-        if (!path || !hostPaths || !hostPaths.bridgeDir || !hostPaths.projectSaved) {
+        if (!path || !targetDir) {
+            return "";
+        }
+        if (!ensureDirRecursive(targetDir)) {
             return "";
         }
 
-        targetDir = path.join(hostPaths.bridgeDir, "videos");
+        return targetDir;
+    }
+
+    function resolveLibraryImagesDir() {
+        var targetDir = path.join(resolveUserDataBridgeDir(), "images");
+
+        if (!path || !targetDir) {
+            return "";
+        }
+        if (!ensureDirRecursive(targetDir)) {
+            return "";
+        }
+
+        return targetDir;
+    }
+
+    function resolveProjectVideosDir() {
+        var targetDir;
+
+        if (!path || !hostPaths || !hostPaths.projectBridgeDir || !hostPaths.projectSaved) {
+            return "";
+        }
+
+        targetDir = path.join(hostPaths.projectBridgeDir, "videos");
         if (!ensureDirRecursive(targetDir)) {
             return "";
         }
@@ -472,11 +498,11 @@
     function resolveProjectImagesDir() {
         var targetDir;
 
-        if (!path || !hostPaths || !hostPaths.bridgeDir || !hostPaths.projectSaved) {
+        if (!path || !hostPaths || !hostPaths.projectBridgeDir || !hostPaths.projectSaved) {
             return "";
         }
 
-        targetDir = path.join(hostPaths.bridgeDir, "images");
+        targetDir = path.join(hostPaths.projectBridgeDir, "images");
         if (!ensureDirRecursive(targetDir)) {
             return "";
         }
@@ -486,8 +512,6 @@
 
     function resolveFramesCaptureDir(mediaPath) {
         var targetDir = "";
-        var mediaDir;
-        var mediaDirName;
 
         if (!path) {
             return "";
@@ -496,25 +520,8 @@
         if (hostPaths && hostPaths.framesDir) {
             targetDir = hostPaths.framesDir;
         }
-        if (!targetDir && hostPaths && hostPaths.bridgeDir) {
-            targetDir = path.join(hostPaths.bridgeDir, "Frames");
-        }
-
-        if (!targetDir && mediaPath) {
-            mediaDir = path.dirname(mediaPath);
-            mediaDirName = trimText(path.basename(mediaDir || "")).toLowerCase();
-            if (mediaDirName === "videos" || mediaDirName === "images" || mediaDirName === "generated") {
-                targetDir = path.join(path.dirname(mediaDir), "Frames");
-            } else if (mediaDir) {
-                targetDir = path.join(mediaDir, "Frames");
-            }
-        }
-
-        if (!targetDir && typeof process !== "undefined" && process && process.env) {
-            targetDir = process.env.TMPDIR || process.env.TEMP || process.env.TMP || "";
-            if (targetDir) {
-                targetDir = path.join(targetDir, "VeoBridge", "Frames");
-            }
+        if (!targetDir) {
+            targetDir = path.join(resolveUserDataBridgeDir(), "frames");
         }
 
         if (!targetDir || !ensureDirRecursive(targetDir)) {
@@ -564,7 +571,7 @@
     function getManagedBridgeRoots() {
         var roots = [];
         var seen = {};
-        var projectBridge = hostPaths && hostPaths.bridgeDir ? trimText(hostPaths.bridgeDir) : "";
+        var libraryBridge = hostPaths && hostPaths.bridgeDir ? trimText(hostPaths.bridgeDir) : "";
         var userBridge = resolveUserDataBridgeDir();
         var key;
 
@@ -581,7 +588,7 @@
             roots.push(cleaned);
         }
 
-        pushRoot(projectBridge);
+        pushRoot(libraryBridge);
         pushRoot(userBridge);
         return roots;
     }
@@ -684,6 +691,15 @@
             } catch (copyFallbackError) {
                 return false;
             }
+        }
+    }
+
+    function copyFileToPath(sourcePath, targetPath) {
+        try {
+            fs.writeFileSync(targetPath, fs.readFileSync(sourcePath));
+            return true;
+        } catch (copyError) {
+            return false;
         }
     }
 
@@ -3873,6 +3889,8 @@
                 timeMs: toEpochMs(createdAt),
                 path: item.path || "",
                 aspectRatio: normalizeAspectRatio(item.aspectRatio || group.aspectRatio || "16:9"),
+                importedToProject: !!item.importedToProject,
+                projectImportPath: item.projectImportPath || "",
                 stateLabel: isMissing ? "Missing file" : "Done",
                 stateClass: isMissing ? "missing" : "done"
             });
@@ -3915,6 +3933,8 @@
                 timeMs: toEpochMs(createdAt),
                 path: item.path || "",
                 aspectRatio: normalizeImageAspectRatio(item.aspectRatio || group.aspectRatio || "1:1"),
+                importedToProject: !!item.importedToProject,
+                projectImportPath: item.projectImportPath || "",
                 stateLabel: isMissing ? "Missing file" : "Done",
                 stateClass: isMissing ? "missing" : "done"
             });
@@ -4426,14 +4446,16 @@
                 renderKeyParts.push([
                     currentItem.kind,
                     currentItem.id,
-                    currentItem.stateClass,
-                    itemStateLabelKey,
-                    currentItem.sampleIndex || 0,
-                    currentItem.path || "",
-                    currentItem.previewPath || "",
-                    currentItem.error || ""
-                ].join("|"));
-            }
+                currentItem.stateClass,
+                itemStateLabelKey,
+                currentItem.sampleIndex || 0,
+                currentItem.path || "",
+                currentItem.previewPath || "",
+                currentItem.importedToProject ? "1" : "0",
+                currentItem.projectImportPath || "",
+                currentItem.error || ""
+            ].join("|"));
+        }
         }
         renderKey = renderKeyParts.join("||");
         if (lastVideosListRenderKey === renderKey) {
@@ -4523,6 +4545,13 @@
                     mediaStateChip = document.createElement("span");
                     mediaStateChip.className = "state-chip state-" + currentItem.stateClass;
                     mediaStateChip.textContent = currentItem.stateLabel || "-";
+                    thumbWrap.appendChild(mediaStateChip);
+                }
+
+                if (currentItem.importedToProject) {
+                    mediaStateChip = document.createElement("span");
+                    mediaStateChip.className = "state-chip state-imported";
+                    mediaStateChip.textContent = "Imported";
                     thumbWrap.appendChild(mediaStateChip);
                 }
 
@@ -4972,6 +5001,8 @@
                 imageItem.model || "",
                 imageItem.aspectRatio || "",
                 imageItem.imageSize || "",
+                imageItem.importedToProject ? "1" : "0",
+                imageItem.projectImportPath || "",
                 fileExists(imageItem.path) ? "1" : "0"
             ].join("|"));
         }
@@ -5026,6 +5057,13 @@
                 badge.textContent = "Done";
                 thumbWrap.appendChild(badge);
                 item.className += " flow-state-done";
+            }
+
+            if (imageItem.importedToProject) {
+                badge = document.createElement("span");
+                badge.className = "state-chip state-imported";
+                badge.textContent = "Imported";
+                thumbWrap.appendChild(badge);
             }
 
             item.appendChild(thumbWrap);
@@ -5187,6 +5225,7 @@
         var filePath = "";
         var createdText = "";
         var line2 = "";
+        var line3 = "";
 
         if (!overlay || !titleEl || !emptyEl || !videoEl || !imageEl || !metaEl) {
             return;
@@ -5249,7 +5288,8 @@
             line2 = mediaPreviewKind === "video"
                 ? ((record.model || "-") + " | " + (record.aspectRatio || "-"))
                 : ((record.model || "-") + " | " + (record.aspectRatio || "-") + " | " + (record.imageSize || "-"));
-            metaEl.textContent = createdText + "\n" + line2 + "\nPath: " + (filePath || "-");
+            line3 = record.importedToProject ? ("Imported to project: " + (record.projectImportPath || "yes")) : "";
+            metaEl.textContent = createdText + "\n" + line2 + (line3 ? ("\n" + line3) : "") + "\nPath: " + (filePath || "-");
             overlay.hidden = false;
             return;
         }
@@ -5270,7 +5310,8 @@
                 btnCapture.disabled = !!isCapturingPreviewFrame;
             }
             line2 = (record.model || "-") + " | " + (record.aspectRatio || "-") + " | " + (record.requestMode || record.mode || "video");
-            metaEl.textContent = createdText + "\n" + line2;
+            line3 = record.importedToProject ? ("Imported to project: " + (record.projectImportPath || "yes")) : "";
+            metaEl.textContent = createdText + "\n" + line2 + (line3 ? ("\n" + line3) : "");
         } else {
             stopInlineVideoPreview(videoEl);
             videoEl.hidden = true;
@@ -5285,7 +5326,8 @@
                 btnCapture.disabled = true;
             }
             line2 = (record.model || "-") + " | " + (record.aspectRatio || "-") + " | " + (record.imageSize || "-");
-            metaEl.textContent = createdText + "\n" + line2;
+            line3 = record.importedToProject ? ("Imported to project: " + (record.projectImportPath || "yes")) : "";
+            metaEl.textContent = createdText + "\n" + line2 + (line3 ? ("\n" + line3) : "");
         }
 
         overlay.hidden = false;
@@ -5380,6 +5422,9 @@
         if (selectedVideo.resolution) {
             summaryChips.push(selectedVideo.resolution);
         }
+        if (selectedVideo.importedToProject) {
+            summaryChips.push("Imported");
+        }
 
         for (i = 0; i < summaryChips.length; i += 1) {
             chipHtml.push("<span class=\"video-meta-chip\">" + escapeHtml(summaryChips[i]) + "</span>");
@@ -5406,6 +5451,11 @@
         lines.push("Request: " + (selectedVideo.requestMode || "frames"));
         if (selectedVideo.refIds && selectedVideo.refIds.length) {
             lines.push("Refs: " + selectedVideo.refIds.length);
+        }
+        if (selectedVideo.importedToProject) {
+            lines.push("Imported: yes");
+            lines.push("Project copy: " + (selectedVideo.projectImportPath || "-"));
+            lines.push("Imported at: " + formatDate(selectedVideo.importedAt));
         }
         details.textContent = lines.join("\n");
         details.hidden = !isVideoMetaDetailsExpanded;
@@ -5473,6 +5523,9 @@
         if (selectedImage.width && selectedImage.height) {
             summaryChips.push(String(selectedImage.width) + "x" + String(selectedImage.height));
         }
+        if (selectedImage.importedToProject) {
+            summaryChips.push("Imported");
+        }
 
         for (i = 0; i < summaryChips.length; i += 1) {
             chipHtml.push("<span class=\"video-meta-chip\">" + escapeHtml(summaryChips[i]) + "</span>");
@@ -5489,6 +5542,11 @@
             lines.push("Dimensions: " + selectedImage.width + " x " + selectedImage.height);
         }
         lines.push("Prompt: " + (selectedImage.prompt || "-"));
+        if (selectedImage.importedToProject) {
+            lines.push("Imported: yes");
+            lines.push("Project copy: " + (selectedImage.projectImportPath || "-"));
+            lines.push("Imported at: " + formatDate(selectedImage.importedAt));
+        }
         details.textContent = lines.join("\n");
         details.hidden = !isImageMetaDetailsExpanded;
         detailsToggle.hidden = false;
@@ -5921,7 +5979,7 @@
             mode: mode,
             durationSeconds: 8,
             resolution: "720p",
-            videosDir: resolveProjectVideosDir(),
+            videosDir: resolveLibraryVideosDir(),
             startShot: startShot,
             endShot: endShot,
             references: videoRefs,
@@ -5975,7 +6033,7 @@
             aspectRatio: aspectRatio,
             imageSize: imageSize,
             references: refs,
-            imagesDir: resolveProjectImagesDir()
+            imagesDir: resolveLibraryImagesDir()
         };
     }
 
@@ -6002,7 +6060,10 @@
             batchId: context.batchId || null,
             sampleIndex: context.sampleIndex || null,
             sampleCount: context.sampleCount || null,
-            status: "ready"
+            status: "ready",
+            importedToProject: false,
+            projectImportPath: null,
+            importedAt: null
         };
 
         if (!savedPath) {
@@ -6041,7 +6102,10 @@
             refPaths: context.referencePaths || [],
             width: dimensions && dimensions.width ? dimensions.width : null,
             height: dimensions && dimensions.height ? dimensions.height : null,
-            status: "ready"
+            status: "ready",
+            importedToProject: false,
+            projectImportPath: null,
+            importedAt: null
         };
 
         if (!savedPath) {
@@ -7481,8 +7545,6 @@
     function moveMediaToProjectForImport(sourcePath, mediaKind) {
         var targetDir;
         var targetPath;
-        var roots;
-        var i;
 
         if (!sourcePath || !fileExists(sourcePath)) {
             return {
@@ -7490,7 +7552,7 @@
                 error: "File is missing on disk."
             };
         }
-        if (!hostPaths || !hostPaths.projectSaved || !hostPaths.bridgeDir) {
+        if (!hostPaths || !hostPaths.projectSaved || !hostPaths.projectBridgeDir) {
             return {
                 ok: false,
                 error: "Project is not saved. Save the AE project first."
@@ -7507,7 +7569,7 @@
         if (isPathInsideDir(sourcePath, targetDir)) {
             return {
                 ok: true,
-                moved: false,
+                copied: false,
                 path: sourcePath,
                 originalPath: sourcePath
             };
@@ -7520,24 +7582,16 @@
                 error: "Cannot create a unique target file name in project folder."
             };
         }
-        if (!moveFileWithRenameOrCopy(sourcePath, targetPath)) {
+        if (!copyFileToPath(sourcePath, targetPath)) {
             return {
                 ok: false,
-                error: "Failed to move media file into project folder."
+                error: "Failed to copy media file into project folder."
             };
-        }
-
-        roots = getManagedBridgeRoots();
-        for (i = 0; i < roots.length; i += 1) {
-            if (isPathInsideDir(sourcePath, roots[i])) {
-                removeEmptyParentDirs(path.dirname(sourcePath), roots[i]);
-                break;
-            }
         }
 
         return {
             ok: true,
-            moved: true,
+            copied: true,
             path: targetPath,
             originalPath: sourcePath
         };
@@ -7572,19 +7626,32 @@
                 setStatus("Import failed: " + prepared.error, true);
                 return;
             }
-            if (prepared.moved) {
-                remapPathInState(prepared.originalPath, prepared.path);
-            }
-
             script = "VeoBridge_importVideo(" + toHostStringLiteral(prepared.path) + ")";
             setStatus("Importing video into AE...", false);
 
             callHost(script, function (error) {
+                var videos;
+                var nextVideos;
+                var i;
+                var item;
                 if (error) {
                     setStatus("Import failed: " + formatError(error), true);
                     return;
                 }
-                setStatus("Done: Video imported from project folder.", false);
+                videos = (getState().videos || []).slice(0);
+                nextVideos = [];
+                for (i = 0; i < videos.length; i += 1) {
+                    item = videos[i];
+                    if (item && item.id === selectedId) {
+                        item = cloneJson(item, {});
+                        item.importedToProject = true;
+                        item.projectImportPath = prepared.path;
+                        item.importedAt = (new Date()).toISOString();
+                    }
+                    nextVideos.push(item);
+                }
+                stateAdapterUpdate({ videos: nextVideos });
+                setStatus("Done: Video imported. Project copy will remain in After Effects project folder.", false);
             });
         });
     }
@@ -7618,19 +7685,32 @@
                 setStatus("Import to active comp failed: " + prepared.error, true);
                 return;
             }
-            if (prepared.moved) {
-                remapPathInState(prepared.originalPath, prepared.path);
-            }
-
             script = "VeoBridge_importVideoToActiveComp(" + toHostStringLiteral(prepared.path) + ")";
             setStatus("Importing video to active composition...", false);
 
             callHost(script, function (error) {
+                var videos;
+                var nextVideos;
+                var i;
+                var item;
                 if (error) {
                     setStatus("Import to active comp failed: " + formatError(error), true);
                     return;
                 }
-                setStatus("Done: Video added to active composition from project folder.", false);
+                videos = (getState().videos || []).slice(0);
+                nextVideos = [];
+                for (i = 0; i < videos.length; i += 1) {
+                    item = videos[i];
+                    if (item && item.id === selectedId) {
+                        item = cloneJson(item, {});
+                        item.importedToProject = true;
+                        item.projectImportPath = prepared.path;
+                        item.importedAt = (new Date()).toISOString();
+                    }
+                    nextVideos.push(item);
+                }
+                stateAdapterUpdate({ videos: nextVideos });
+                setStatus("Done: Video added to active composition. Project copy will remain in After Effects project folder.", false);
             });
         });
     }
@@ -7686,6 +7766,13 @@
         if (!removedVideo) {
             setStatus("Selected video was not found in current state.", true);
             return;
+        }
+
+        if (removedVideo.importedToProject) {
+            if (!window.confirm("Delete this media from VeoBridge Gallery?\n\nProject copy will remain in After Effects project folder.")) {
+                setStatus("Delete canceled.", false);
+                return;
+            }
         }
 
         if (nextVideos.length) {
@@ -7761,19 +7848,32 @@
                 setStatus("Import failed: " + prepared.error, true);
                 return;
             }
-            if (prepared.moved) {
-                remapPathInState(prepared.originalPath, prepared.path);
-            }
-
             script = "VeoBridge_importImage(" + toHostStringLiteral(prepared.path) + ")";
             setStatus("Importing image into AE...", false);
 
             callHost(script, function (error) {
+                var images;
+                var nextImages;
+                var i;
+                var item;
                 if (error) {
                     setStatus("Import failed: " + formatError(error), true);
                     return;
                 }
-                setStatus("Done: Image imported from project folder.", false);
+                images = (getState().images || []).slice(0);
+                nextImages = [];
+                for (i = 0; i < images.length; i += 1) {
+                    item = images[i];
+                    if (item && item.id === selectedId) {
+                        item = cloneJson(item, {});
+                        item.importedToProject = true;
+                        item.projectImportPath = prepared.path;
+                        item.importedAt = (new Date()).toISOString();
+                    }
+                    nextImages.push(item);
+                }
+                stateAdapterUpdate({ images: nextImages });
+                setStatus("Done: Image imported. Project copy will remain in After Effects project folder.", false);
             });
         });
     }
@@ -7807,19 +7907,32 @@
                 setStatus("Import to active comp failed: " + prepared.error, true);
                 return;
             }
-            if (prepared.moved) {
-                remapPathInState(prepared.originalPath, prepared.path);
-            }
-
             script = "VeoBridge_importImageToActiveComp(" + toHostStringLiteral(prepared.path) + ")";
             setStatus("Importing image to active composition...", false);
 
             callHost(script, function (error) {
+                var images;
+                var nextImages;
+                var i;
+                var item;
                 if (error) {
                     setStatus("Import to active comp failed: " + formatError(error), true);
                     return;
                 }
-                setStatus("Done: Image added to active composition from project folder.", false);
+                images = (getState().images || []).slice(0);
+                nextImages = [];
+                for (i = 0; i < images.length; i += 1) {
+                    item = images[i];
+                    if (item && item.id === selectedId) {
+                        item = cloneJson(item, {});
+                        item.importedToProject = true;
+                        item.projectImportPath = prepared.path;
+                        item.importedAt = (new Date()).toISOString();
+                    }
+                    nextImages.push(item);
+                }
+                stateAdapterUpdate({ images: nextImages });
+                setStatus("Done: Image added to active composition. Project copy will remain in After Effects project folder.", false);
             });
         });
     }
@@ -7922,6 +8035,13 @@
         if (!removedImage) {
             setStatus("Selected image was not found in current state.", true);
             return;
+        }
+
+        if (removedImage.importedToProject) {
+            if (!window.confirm("Delete this media from VeoBridge Gallery?\n\nProject copy will remain in After Effects project folder.")) {
+                setStatus("Delete canceled.", false);
+                return;
+            }
         }
 
         if (nextImages.length) {
@@ -9637,7 +9757,7 @@
                 }
                 hostPaths = pathsResult || null;
                 if (!hostPaths || !hostPaths.projectSaved) {
-                    setStatus("Project is not saved yet. Media will be stored in userData/VeoBridge.", false);
+                    setStatus("Project is not saved yet. Media is stored in userData/VeoBridge; importing to AE will require saving the project first.", false);
                 }
             });
         }

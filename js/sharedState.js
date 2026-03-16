@@ -3,7 +3,7 @@
 
     var POLL_INTERVAL_MS = 750;
     var STATE_VERSION_NONE = 0;
-    var LATEST_STATE_VERSION = 2;
+    var LATEST_STATE_VERSION = 3;
     var DEFAULT_STATE = {
         stateVersion: LATEST_STATE_VERSION,
         shots: [],
@@ -186,7 +186,10 @@
             resolution: input.resolution || null,
             refIds: input.refIds && input.refIds instanceof Array ? input.refIds : [],
             requestMode: input.requestMode || null,
-            status: input.status || "ready"
+            status: input.status || "ready",
+            importedToProject: !!input.importedToProject,
+            projectImportPath: input.projectImportPath || null,
+            importedAt: input.importedAt || null
         };
     }
 
@@ -207,7 +210,10 @@
             refPaths: input.refPaths && input.refPaths instanceof Array ? input.refPaths.slice(0) : [],
             width: typeof input.width === "number" ? input.width : null,
             height: typeof input.height === "number" ? input.height : null,
-            status: input.status || "ready"
+            status: input.status || "ready",
+            importedToProject: !!input.importedToProject,
+            projectImportPath: input.projectImportPath || null,
+            importedAt: input.importedAt || null
         };
     }
 
@@ -341,6 +347,52 @@
         return next;
     }
 
+    function _migrateStateToV3(candidate) {
+        var next = candidate && typeof candidate === "object" ? _cloneJson(candidate) : {};
+        var i;
+
+        if (!next || typeof next !== "object") {
+            next = {};
+        }
+
+        if (next.videos && next.videos instanceof Array) {
+            for (i = 0; i < next.videos.length; i += 1) {
+                if (!next.videos[i] || typeof next.videos[i] !== "object") {
+                    continue;
+                }
+                if (typeof next.videos[i].importedToProject === "undefined") {
+                    next.videos[i].importedToProject = false;
+                }
+                if (typeof next.videos[i].projectImportPath === "undefined") {
+                    next.videos[i].projectImportPath = null;
+                }
+                if (typeof next.videos[i].importedAt === "undefined") {
+                    next.videos[i].importedAt = null;
+                }
+            }
+        }
+
+        if (next.images && next.images instanceof Array) {
+            for (i = 0; i < next.images.length; i += 1) {
+                if (!next.images[i] || typeof next.images[i] !== "object") {
+                    continue;
+                }
+                if (typeof next.images[i].importedToProject === "undefined") {
+                    next.images[i].importedToProject = false;
+                }
+                if (typeof next.images[i].projectImportPath === "undefined") {
+                    next.images[i].projectImportPath = null;
+                }
+                if (typeof next.images[i].importedAt === "undefined") {
+                    next.images[i].importedAt = null;
+                }
+            }
+        }
+
+        next.stateVersion = 3;
+        return next;
+    }
+
     function _migrateState(candidate) {
         var migrated = candidate && typeof candidate === "object" ? _cloneJson(candidate) : {};
         var version = _toStateVersion(migrated && migrated.stateVersion);
@@ -352,6 +404,10 @@
         if (version < 2) {
             migrated = _migrateStateToV2(migrated);
             version = 2;
+        }
+        if (version < 3) {
+            migrated = _migrateStateToV3(migrated);
+            version = 3;
         }
 
         if (!migrated || typeof migrated !== "object") {

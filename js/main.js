@@ -553,7 +553,7 @@
                 setStatus("Path initialization warning: " + error.message + ". Capture will work when active comp is selected.", false);
                 return;
             }
-            setStatus("Ready.", false);
+            setStatus("Ready. Media library is stored in userData/VeoBridge.", false);
         });
     });
 

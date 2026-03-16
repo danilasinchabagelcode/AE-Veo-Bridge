@@ -1639,6 +1639,12 @@ body.gallery-flow {
     background: rgba(53, 142, 84, 0.9);
 }
 
+.gallery-flow .state-chip.state-imported {
+    left: 8px;
+    right: auto;
+    background: rgba(181, 134, 46, 0.92);
+}
+
 .gallery-flow .state-chip.state-error,
 .gallery-flow .state-chip.state-missing {
     background: rgba(178, 58, 72, 0.92);
