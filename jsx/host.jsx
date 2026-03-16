@@ -1043,7 +1043,6 @@
         var duration;
         var frameRate;
         var comp;
-        var solidItem;
         var solidLayer;
         var color;
         var normalizedRatio;
@@ -1087,14 +1086,17 @@
         try {
             comp = app.project.items.addComp(compName, width, height, 1, duration, frameRate);
             comp.parentFolder = app.project.rootFolder;
-
-            solidItem = app.project.items.addSolid(color, solidName, width, height, 1, duration);
-            solidItem.parentFolder = app.project.rootFolder;
-
-            solidLayer = comp.layers.add(solidItem);
+            solidLayer = comp.layers.addSolid(color, solidName, width, height, 1, duration);
             if (solidLayer) {
                 solidLayer.startTime = 0;
                 solidLayer.locked = true;
+                try {
+                    if (solidLayer.source) {
+                        solidLayer.source.parentFolder = app.project.rootFolder;
+                    }
+                } catch (sourceFolderError) {
+                    // Ignore source folder reassignment issues.
+                }
             }
             app.project.activeItem = comp;
         } catch (error) {
@@ -1107,7 +1109,7 @@
 
         return _makeResult(true, {
             compName: comp ? comp.name : compName,
-            solidName: solidItem ? solidItem.name : solidName,
+            solidName: solidLayer && solidLayer.source ? solidLayer.source.name : solidName,
             width: width,
             height: height,
             colorLabel: normalizedColor,

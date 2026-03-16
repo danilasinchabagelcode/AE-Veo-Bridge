@@ -246,12 +246,14 @@
 
         if (select.value === "Custom") {
             picker.disabled = false;
+            picker.removeAttribute("disabled");
             return;
         }
 
         preset = COLOR_PRESETS[select.value] || COLOR_PRESETS.Green;
         picker.value = preset.hex;
         picker.disabled = true;
+        picker.setAttribute("disabled", "disabled");
     }
 
     function onCaptureClick() {
@@ -635,7 +637,6 @@
         var btnSaveApiKey = getById("btnSaveApiKey");
         var btnCloseSettings = getById("btnCloseSettings");
         var btnSubmitCreateComp = getById("btnSubmitCreateComp");
-        var btnCloseCreateComp = getById("btnCloseCreateComp");
         var settingsModal = getById("settingsModal");
         var createCompModal = getById("createCompModal");
         var bgColorSelect = getById("bgColorSelect");
@@ -661,11 +662,14 @@
         if (btnSubmitCreateComp) {
             btnSubmitCreateComp.addEventListener("click", submitCreateComp);
         }
-        if (btnCloseCreateComp) {
-            btnCloseCreateComp.addEventListener("click", closeCreateCompModal);
-        }
         if (bgColorSelect) {
-            bgColorSelect.addEventListener("change", syncCreateCompColorUi);
+            bgColorSelect.addEventListener("change", function () {
+                var picker = getById("bgColorPicker");
+                syncCreateCompColorUi();
+                if (bgColorSelect.value === "Custom" && picker && !picker.disabled && typeof picker.focus === "function") {
+                    picker.focus();
+                }
+            });
         }
 
         if (settingsModal) {

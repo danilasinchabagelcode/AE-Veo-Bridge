@@ -227,8 +227,8 @@ textarea {
 }
 
 .launcher-action-btn {
-    min-width: 94px;
-    padding: 7px 12px;
+    min-width: 82px;
+    padding: 7px 10px;
 }
 
 .launcher-icon-btn {
@@ -243,6 +243,14 @@ textarea {
     border-radius: 10px;
     font-size: 16px;
     line-height: 1;
+}
+
+.launcher-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transform: translateY(-1px);
 }
 
 #bgColorPicker {
@@ -292,6 +300,43 @@ textarea {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+}
+
+.create-comp-card {
+    width: min(720px, 100%);
+    gap: 12px;
+}
+
+.create-comp-inline-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+
+.create-comp-inline-label {
+    margin: 0;
+    white-space: nowrap;
+    padding-bottom: 9px;
+}
+
+.create-comp-inline-control {
+    width: 150px;
+    flex: 0 0 auto;
+}
+
+#createCompModal #bgColorPicker {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    padding: 4px;
+    border-radius: 10px;
+    flex: 0 0 auto;
+}
+
+#btnSubmitCreateComp {
+    min-width: 110px;
+    flex: 0 0 auto;
 }
 
 .gallery-root {
@@ -1511,9 +1556,23 @@ body.gallery-flow {
 .gallery-flow .flow-row-meta-head {
     display: flex;
     align-items: flex-start;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+    justify-content: space-between;
+    flex-wrap: nowrap;
     gap: 8px;
+}
+
+.gallery-flow .flow-row-actions {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.gallery-flow .flow-row-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .gallery-flow .flow-reuse-btn {

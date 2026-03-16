@@ -12,10 +12,10 @@
 
         <section class="card launcher-card">
             <div class="toolbar launcher-toolbar">
+                <button id="btnCreateComp" type="button" class="launcher-icon-btn" aria-label="Create helper composition" title="Create helper composition"><span class="launcher-icon">+</span></button>
                 <button id="btnCapture" type="button" class="launcher-action-btn">Capture</button>
                 <button id="btnOpenGallery" type="button" class="launcher-action-btn">Gallery</button>
-                <button id="btnCreateComp" type="button" class="launcher-icon-btn" aria-label="Create helper composition" title="Create helper composition">+</button>
-                <button id="btnSettings" type="button" class="launcher-icon-btn" aria-label="Settings" title="Settings">&#9881;</button>
+                <button id="btnSettings" type="button" class="launcher-icon-btn" aria-label="Settings" title="Settings"><span class="launcher-icon">&#9881;</span></button>
             </div>
             <p class="muted-note">Use Gallery for Start/End setup, prompt, generation, and video import.</p>
         </section>
@@ -36,29 +36,25 @@
     </div>
 
     <div id="createCompModal" class="modal-backdrop" hidden>
-        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="createCompTitle">
+        <div class="modal-card create-comp-card" role="dialog" aria-modal="true" aria-labelledby="createCompTitle">
             <h2 id="createCompTitle" class="modal-title">Create Composition</h2>
+            <div class="create-comp-inline-row">
+                <label for="ratioSelect" class="field-label create-comp-inline-label">Ratio</label>
+                <select id="ratioSelect" class="create-comp-inline-control">
+                    <option value="16x9" selected>16x9</option>
+                    <option value="1x1">1x1</option>
+                    <option value="9x16">9x16</option>
+                </select>
 
-            <label for="ratioSelect" class="field-label">Ratio</label>
-            <select id="ratioSelect">
-                <option value="16x9" selected>16x9</option>
-                <option value="1x1">1x1</option>
-                <option value="9x16">9x16</option>
-            </select>
+                <label for="bgColorSelect" class="field-label create-comp-inline-label">BG Color</label>
+                <select id="bgColorSelect" class="create-comp-inline-control">
+                    <option value="Green" selected>Green</option>
+                    <option value="Blue">Blue</option>
+                    <option value="Magenta">Magenta</option>
+                    <option value="Custom">Custom</option>
+                </select>
 
-            <label for="bgColorSelect" class="field-label">BG Color</label>
-            <select id="bgColorSelect">
-                <option value="Green" selected>Green</option>
-                <option value="Blue">Blue</option>
-                <option value="Magenta">Magenta</option>
-                <option value="Custom">Custom</option>
-            </select>
-
-            <label for="bgColorPicker" class="field-label">Color</label>
-            <input id="bgColorPicker" type="color" value="#00ff00" disabled>
-
-            <div class="modal-actions">
-                <button id="btnCloseCreateComp" type="button">Close</button>
+                <input id="bgColorPicker" type="color" value="#00ff00" disabled aria-label="Background color">
                 <button id="btnSubmitCreateComp" type="button" class="btn-primary">Create</button>
             </div>
         </div>

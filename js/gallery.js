@@ -4529,6 +4529,7 @@
         var actionBtn;
         var metaWrap;
         var metaHead;
+        var actionsWrap;
         var titleLine;
         var subLine;
         var dateLine;
@@ -4782,6 +4783,9 @@
             titleLine.textContent = group.prompt || (group.kind === "video" ? "Video request" : "Image request");
             metaHead.appendChild(titleLine);
 
+            actionsWrap = document.createElement("div");
+            actionsWrap.className = "flow-row-actions";
+
             reuseBtn = document.createElement("button");
             reuseBtn.type = "button";
             reuseBtn.className = "flow-reuse-btn";
@@ -4798,7 +4802,7 @@
                     applyGroupToComposer(groupCopy);
                 };
             }(group)));
-            metaHead.appendChild(reuseBtn);
+            actionsWrap.appendChild(reuseBtn);
 
             deleteBatchBtn = document.createElement("button");
             deleteBatchBtn.type = "button";
@@ -4817,7 +4821,7 @@
                     deleteBatchGroup(groupCopy2);
                 };
             }(group)));
-            metaHead.appendChild(deleteBatchBtn);
+            actionsWrap.appendChild(deleteBatchBtn);
 
             if (group.hasPendingJobs) {
                 clearPendingBtn = document.createElement("button");
@@ -4842,8 +4846,9 @@
                         setStatus("No pending placeholders to clear.", false);
                     };
                 }(group.key)));
-                metaHead.appendChild(clearPendingBtn);
+                actionsWrap.appendChild(clearPendingBtn);
             }
+            metaHead.appendChild(actionsWrap);
             metaWrap.appendChild(metaHead);
 
             subLine = document.createElement("div");
