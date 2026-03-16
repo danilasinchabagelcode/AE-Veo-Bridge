@@ -2010,7 +2010,8 @@
             videos: cloneJson(source.videos || [], []),
             selectedVideoId: source.selectedVideoId || null,
             images: cloneJson(source.images || [], []),
-            selectedImageId: source.selectedImageId || null
+            selectedImageId: source.selectedImageId || null,
+            pendingJobs: cloneJson(getPendingJobs(source) || [], [])
         };
     }
 
@@ -4356,6 +4357,159 @@
         return removedCount;
     }
 
+    function deleteBatchGroup(group) {
+        var state = getState();
+        var groupKey = group && group.key ? trimText(group.key) : "";
+        var nextVideos = [];
+        var nextImages = [];
+        var nextPendingJobs = [];
+        var removedVideos = [];
+        var removedImages = [];
+        var removedPendingJobs = [];
+        var removedFiles = [];
+        var nextSelectedVideoId = null;
+        var nextSelectedImageId = null;
+        var nextState;
+        var i;
+        var item;
+        var moveResult;
+        var hasImported = false;
+
+        if (!groupKey) {
+            setStatus("Batch delete failed: invalid batch.", true);
+            return;
+        }
+
+        if (group && group.activePendingJobsCount > 0) {
+            setStatus("Cannot delete a batch while generation is still running.", true);
+            return;
+        }
+
+        for (i = 0; i < (state.videos || []).length; i += 1) {
+            item = state.videos[i];
+            if (item && ("video:" + (item.batchId || item.id)) === groupKey) {
+                removedVideos.push(item);
+                if (item.importedToProject) {
+                    hasImported = true;
+                }
+                continue;
+            }
+            nextVideos.push(item);
+        }
+
+        for (i = 0; i < (state.images || []).length; i += 1) {
+            item = state.images[i];
+            if (item && ("image:" + (item.batchId || item.id)) === groupKey) {
+                removedImages.push(item);
+                if (item.importedToProject) {
+                    hasImported = true;
+                }
+                continue;
+            }
+            nextImages.push(item);
+        }
+
+        for (i = 0; i < getPendingJobs(state).length; i += 1) {
+            item = getPendingJobs(state)[i];
+            if (item && ((item.kind === "image" ? "image:" : "video:") + (item.batchId || item.id)) === groupKey) {
+                removedPendingJobs.push(item);
+                continue;
+            }
+            nextPendingJobs.push(item);
+        }
+
+        if (!removedVideos.length && !removedImages.length && !removedPendingJobs.length) {
+            setStatus("Batch delete failed: nothing to remove.", true);
+            return;
+        }
+
+        if (hasImported) {
+            if (!window.confirm("Delete this batch from VeoBridge Gallery?\n\nProject copy will remain in After Effects project folder.")) {
+                setStatus("Batch delete canceled.", false);
+                return;
+            }
+        }
+
+        if (state.selectedVideoId && findVideoById(nextVideos, state.selectedVideoId)) {
+            nextSelectedVideoId = state.selectedVideoId;
+        } else if (nextVideos.length) {
+            nextSelectedVideoId = nextVideos[0].id;
+        }
+
+        if (state.selectedImageId && findImageById(nextImages, state.selectedImageId)) {
+            nextSelectedImageId = state.selectedImageId;
+        } else if (nextImages.length) {
+            nextSelectedImageId = nextImages[0].id;
+        }
+
+        nextState = {
+            shots: state.shots || [],
+            selectedShotId: state.selectedShotId || null,
+            startShotId: state.startShotId || null,
+            endShotId: state.endShotId || null,
+            refs: state.refs || [],
+            videoRefs: getVideoRefs(state),
+            videos: nextVideos,
+            images: nextImages,
+            pendingJobs: nextPendingJobs
+        };
+
+        for (i = 0; i < removedVideos.length; i += 1) {
+            item = removedVideos[i];
+            if (item && item.path && shouldDeletePathForNextState(item.path, nextState)) {
+                moveResult = moveFileToTrash(item.path);
+                if (moveResult && moveResult.ok && moveResult.moved) {
+                    removedFiles.push({
+                        originalPath: moveResult.originalPath,
+                        trashPath: moveResult.trashPath
+                    });
+                }
+            }
+        }
+
+        for (i = 0; i < removedImages.length; i += 1) {
+            item = removedImages[i];
+            if (item && item.path && shouldDeletePathForNextState(item.path, nextState)) {
+                moveResult = moveFileToTrash(item.path);
+                if (moveResult && moveResult.ok && moveResult.moved) {
+                    removedFiles.push({
+                        originalPath: moveResult.originalPath,
+                        trashPath: moveResult.trashPath
+                    });
+                }
+            }
+        }
+
+        for (i = 0; i < removedPendingJobs.length; i += 1) {
+            item = removedPendingJobs[i];
+            if (item && item.downloadedPath && shouldDeletePathForNextState(item.downloadedPath, nextState)) {
+                moveResult = moveFileToTrash(item.downloadedPath);
+                if (moveResult && moveResult.ok && moveResult.moved) {
+                    removedFiles.push({
+                        originalPath: moveResult.originalPath,
+                        trashPath: moveResult.trashPath
+                    });
+                }
+            }
+        }
+
+        pushUndoDeleteAction("Batch delete", buildUndoDeleteSnapshot(state), removedFiles);
+
+        stateAdapterUpdate({
+            videos: nextVideos,
+            selectedVideoId: nextSelectedVideoId,
+            images: nextImages,
+            selectedImageId: nextSelectedImageId,
+            pendingJobs: trimPendingJobs(nextPendingJobs)
+        });
+
+        if (removedFiles.length > 0) {
+            setStatus("Batch moved to VeoBridge trash.", false);
+            return;
+        }
+        setStatus("Batch removed from gallery list.", false);
+    }
+
     function renderVideosList(state) {
         var list = getById("videosList");
         var groups = collectUnifiedMediaGroups(state);
@@ -4382,6 +4536,7 @@
         var metaThumbs;
         var metaThumb;
         var reuseBtn;
+        var deleteBatchBtn;
         var clearPendingBtn;
         var miniThumbPath;
         var displayDate;
@@ -4644,6 +4799,25 @@
                 };
             }(group)));
             metaHead.appendChild(reuseBtn);
+
+            deleteBatchBtn = document.createElement("button");
+            deleteBatchBtn.type = "button";
+            deleteBatchBtn.className = "flow-batch-delete-btn is-danger";
+            deleteBatchBtn.textContent = "\u00D7";
+            deleteBatchBtn.title = "Delete batch";
+            deleteBatchBtn.setAttribute("aria-label", "Delete batch");
+            deleteBatchBtn.addEventListener("click", (function (groupCopy2) {
+                return function (event) {
+                    if (event && typeof event.preventDefault === "function") {
+                        event.preventDefault();
+                    }
+                    if (event && typeof event.stopPropagation === "function") {
+                        event.stopPropagation();
+                    }
+                    deleteBatchGroup(groupCopy2);
+                };
+            }(group)));
+            metaHead.appendChild(deleteBatchBtn);
 
             if (group.hasPendingJobs) {
                 clearPendingBtn = document.createElement("button");

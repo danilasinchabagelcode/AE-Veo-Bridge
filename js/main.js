@@ -4,9 +4,15 @@
     var STORAGE_KEY_API_KEY = "veobridge.apiKey";
     var cs = null;
     var isCapturing = false;
+    var isCreatingComp = false;
     var galleryWindowRef = null;
     var isGalleryOpening = false;
     var galleryOpeningTimer = null;
+    var COLOR_PRESETS = {
+        Green: { r: 0, g: 255, b: 0, hex: "#00ff00" },
+        Blue: { r: 0, g: 0, b: 255, hex: "#0000ff" },
+        Magenta: { r: 255, g: 0, b: 255, hex: "#ff00ff" }
+    };
 
     function getById(id) {
         return document.getElementById(id);
@@ -201,6 +207,51 @@
             width: typeof payload.width === "number" ? payload.width : null,
             height: typeof payload.height === "number" ? payload.height : null
         };
+    }
+
+    function toScriptString(value) {
+        return JSON.stringify(String(value == null ? "" : value));
+    }
+
+    function toRgbObject(hexValue) {
+        var normalized = String(hexValue || "").replace("#", "");
+        if (normalized.length !== 6) {
+            normalized = "000000";
+        }
+        return {
+            r: parseInt(normalized.substring(0, 2), 16),
+            g: parseInt(normalized.substring(2, 4), 16),
+            b: parseInt(normalized.substring(4, 6), 16)
+        };
+    }
+
+    function getRatioSpec(ratioValue) {
+        if (ratioValue === "1x1") {
+            return { label: "1x1", width: 1080, height: 1080 };
+        }
+        if (ratioValue === "9x16") {
+            return { label: "9x16", width: 1080, height: 1920 };
+        }
+        return { label: "16x9", width: 1920, height: 1080 };
+    }
+
+    function syncCreateCompColorUi() {
+        var select = getById("bgColorSelect");
+        var picker = getById("bgColorPicker");
+        var preset;
+
+        if (!select || !picker) {
+            return;
+        }
+
+        if (select.value === "Custom") {
+            picker.disabled = false;
+            return;
+        }
+
+        preset = COLOR_PRESETS[select.value] || COLOR_PRESETS.Green;
+        picker.value = preset.hex;
+        picker.disabled = true;
     }
 
     function onCaptureClick() {
@@ -463,8 +514,34 @@
         }
     }
 
+    function openCreateCompModal() {
+        var modal = getById("createCompModal");
+        var ratioSelect = getById("ratioSelect");
+        var bgColorSelect = getById("bgColorSelect");
+
+        if (!modal) {
+            return;
+        }
+
+        if (ratioSelect) {
+            ratioSelect.value = "16x9";
+        }
+        if (bgColorSelect) {
+            bgColorSelect.value = "Green";
+        }
+        syncCreateCompColorUi();
+        modal.hidden = false;
+    }
+
     function closeSettingsModal() {
         var modal = getById("settingsModal");
+        if (modal) {
+            modal.hidden = true;
+        }
+    }
+
+    function closeCreateCompModal() {
+        var modal = getById("createCompModal");
         if (modal) {
             modal.hidden = true;
         }
@@ -501,19 +578,76 @@
         setStatus("Settings saved.", false);
     }
 
+    function submitCreateComp() {
+        var ratioSelect = getById("ratioSelect");
+        var bgColorSelect = getById("bgColorSelect");
+        var colorPicker = getById("bgColorPicker");
+        var ratioSpec;
+        var colorLabel;
+        var color;
+        var script;
+
+        if (isCreatingComp) {
+            setStatus("Composition creation is already running.", true);
+            return;
+        }
+        if (!ratioSelect || !bgColorSelect || !colorPicker) {
+            setStatus("Create Composition UI is unavailable.", true);
+            return;
+        }
+
+        ratioSpec = getRatioSpec(ratioSelect.value);
+        colorLabel = bgColorSelect.value === "Custom" ? "Custom" : bgColorSelect.value;
+        if (bgColorSelect.value === "Custom") {
+            color = toRgbObject(colorPicker.value);
+        } else {
+            color = COLOR_PRESETS[bgColorSelect.value] || COLOR_PRESETS.Green;
+        }
+
+        script = "VeoBridge_createCompWithBackground(" +
+            toScriptString(ratioSpec.label) + "," +
+            toScriptString(colorLabel) + "," +
+            String(ratioSpec.width) + "," +
+            String(ratioSpec.height) + "," +
+            String(color.r) + "," +
+            String(color.g) + "," +
+            String(color.b) +
+            ")";
+
+        isCreatingComp = true;
+        setStatus("Creating composition...", false);
+        callHost(script, function (error, payload) {
+            isCreatingComp = false;
+            if (error) {
+                setStatus("Create Composition failed: " + error.message, true);
+                return;
+            }
+            closeCreateCompModal();
+            setStatus("Created: " + String(payload && payload.compName ? payload.compName : ratioSpec.label + "_" + colorLabel), false);
+        });
+    }
+
     function bindActions() {
         var btnCapture = getById("btnCapture");
         var btnOpenGallery = getById("btnOpenGallery");
+        var btnCreateComp = getById("btnCreateComp");
         var btnSettings = getById("btnSettings");
         var btnSaveApiKey = getById("btnSaveApiKey");
         var btnCloseSettings = getById("btnCloseSettings");
+        var btnSubmitCreateComp = getById("btnSubmitCreateComp");
+        var btnCloseCreateComp = getById("btnCloseCreateComp");
         var settingsModal = getById("settingsModal");
+        var createCompModal = getById("createCompModal");
+        var bgColorSelect = getById("bgColorSelect");
 
         if (btnCapture) {
             btnCapture.addEventListener("click", onCaptureClick);
         }
         if (btnOpenGallery) {
             btnOpenGallery.addEventListener("click", openGalleryWindow);
+        }
+        if (btnCreateComp) {
+            btnCreateComp.addEventListener("click", openCreateCompModal);
         }
         if (btnSettings) {
             btnSettings.addEventListener("click", openSettingsModal);
@@ -524,6 +658,15 @@
         if (btnCloseSettings) {
             btnCloseSettings.addEventListener("click", closeSettingsModal);
         }
+        if (btnSubmitCreateComp) {
+            btnSubmitCreateComp.addEventListener("click", submitCreateComp);
+        }
+        if (btnCloseCreateComp) {
+            btnCloseCreateComp.addEventListener("click", closeCreateCompModal);
+        }
+        if (bgColorSelect) {
+            bgColorSelect.addEventListener("change", syncCreateCompColorUi);
+        }
 
         if (settingsModal) {
             settingsModal.addEventListener("click", function (event) {
@@ -532,10 +675,18 @@
                 }
             });
         }
+        if (createCompModal) {
+            createCompModal.addEventListener("click", function (event) {
+                if (event.target === createCompModal) {
+                    closeCreateCompModal();
+                }
+            });
+        }
 
         document.addEventListener("keydown", function (event) {
             if (event.key === "Escape") {
                 closeSettingsModal();
+                closeCreateCompModal();
             }
         });
     }

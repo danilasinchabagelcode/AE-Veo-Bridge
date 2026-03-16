@@ -221,8 +221,38 @@ textarea {
     gap: 10px;
 }
 
-.launcher-toolbar button {
-    min-width: 120px;
+.launcher-toolbar {
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.launcher-action-btn {
+    min-width: 94px;
+    padding: 7px 12px;
+}
+
+.launcher-icon-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 16px;
+    line-height: 1;
+}
+
+#bgColorPicker {
+    height: 36px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+#bgColorPicker:disabled {
+    cursor: not-allowed;
 }
 
 .modal-backdrop {
@@ -1480,8 +1510,9 @@ body.gallery-flow {
 
 .gallery-flow .flow-row-meta-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -1499,6 +1530,18 @@ body.gallery-flow {
 .gallery-flow .flow-reuse-btn:hover {
     border-color: rgba(148, 185, 247, 0.8);
     background: rgba(43, 58, 84, 0.96);
+}
+
+.gallery-flow .flow-batch-delete-btn {
+    min-height: 28px;
+    height: 28px;
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+    border-radius: 9px;
+    font-size: 15px;
+    line-height: 1;
+    flex: 0 0 auto;
 }
 
 .gallery-flow .flow-clear-pending-btn {
@@ -1665,9 +1708,11 @@ body.gallery-flow {
     color: #eef2fb;
     flex: 1 1 auto;
     min-width: 0;
-    white-space: nowrap;
+    white-space: normal;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: clip;
+    word-break: break-word;
+    max-height: 7.2em;
 }
 
 .gallery-flow .flow-row-sub,

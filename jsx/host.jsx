@@ -249,6 +249,68 @@
         return null;
     }
 
+    function _findUniqueProjectItemName(baseName) {
+        var items;
+        var candidate;
+        var suffix;
+        var exists;
+        var i;
+        var item;
+
+        if (!app || !app.project) {
+            return baseName;
+        }
+
+        items = app.project.items;
+        candidate = baseName;
+        suffix = 1;
+
+        while (true) {
+            exists = false;
+            for (i = 1; i <= items.length; i += 1) {
+                item = items[i];
+                try {
+                    if (item && item.name === candidate) {
+                        exists = true;
+                        break;
+                    }
+                } catch (nameError) {
+                    // Ignore inaccessible project items.
+                }
+            }
+            if (!exists) {
+                return candidate;
+            }
+            suffix += 1;
+            candidate = baseName + "_" + String(suffix);
+        }
+    }
+
+    function _normalizeColorChannel(value) {
+        var numeric = Number(value);
+        if (!isFinite(numeric)) {
+            numeric = 0;
+        }
+        if (numeric < 0) {
+            numeric = 0;
+        }
+        if (numeric > 255) {
+            numeric = 255;
+        }
+        return numeric;
+    }
+
+    function _normalizeCompDimension(value, fallbackValue) {
+        var numeric = parseInt(value, 10);
+        if (!(numeric > 0)) {
+            numeric = fallbackValue;
+        }
+        if (!(numeric > 0)) {
+            numeric = 1080;
+        }
+        return numeric;
+    }
+
     function _getOrCreateChildFolder(parentFolder, folderName) {
         var folder = _findChildFolder(parentFolder, folderName);
 
@@ -971,6 +1033,85 @@
             activeCompName: comp.name,
             path: file.fsName,
             projectFolder: "VeoBridge/Generated"
+        });
+    };
+
+    $.global.VeoBridge_createCompWithBackground = function (ratioLabel, colorLabel, width, height, red, green, blue) {
+        var compName;
+        var solidName;
+        var activeComp;
+        var duration;
+        var frameRate;
+        var comp;
+        var solidItem;
+        var solidLayer;
+        var color;
+        var normalizedRatio;
+        var normalizedColor;
+
+        if (!app || !app.project) {
+            return _makeError("NO_PROJECT", "After Effects project is not available.");
+        }
+
+        normalizedRatio = _sanitizeFileName(_safeTrim(ratioLabel || "Comp"));
+        if (!normalizedRatio) {
+            normalizedRatio = "Comp";
+        }
+        normalizedColor = _sanitizeFileName(_safeTrim(colorLabel || "Color"));
+        if (!normalizedColor) {
+            normalizedColor = "Color";
+        }
+
+        width = _normalizeCompDimension(width, 1920);
+        height = _normalizeCompDimension(height, 1080);
+        color = [
+            _normalizeColorChannel(red) / 255.0,
+            _normalizeColorChannel(green) / 255.0,
+            _normalizeColorChannel(blue) / 255.0
+        ];
+
+        activeComp = _getActiveComp();
+        duration = activeComp ? activeComp.duration : 8;
+        frameRate = activeComp ? activeComp.frameRate : 30;
+        if (!(duration > 0)) {
+            duration = 8;
+        }
+        if (!(frameRate > 0)) {
+            frameRate = 30;
+        }
+
+        compName = _findUniqueProjectItemName(normalizedRatio + "_" + normalizedColor);
+        solidName = _findUniqueProjectItemName("BG_" + normalizedRatio + "_" + normalizedColor);
+
+        app.beginUndoGroup("VeoBridge Create Background Comp");
+        try {
+            comp = app.project.items.addComp(compName, width, height, 1, duration, frameRate);
+            comp.parentFolder = app.project.rootFolder;
+
+            solidItem = app.project.items.addSolid(color, solidName, width, height, 1, duration);
+            solidItem.parentFolder = app.project.rootFolder;
+
+            solidLayer = comp.layers.add(solidItem);
+            if (solidLayer) {
+                solidLayer.startTime = 0;
+                solidLayer.locked = true;
+            }
+            app.project.activeItem = comp;
+        } catch (error) {
+            app.endUndoGroup();
+            return _makeError("CREATE_COMP_FAILED", "Failed to create composition with background.", {
+                details: String(error)
+            });
+        }
+        app.endUndoGroup();
+
+        return _makeResult(true, {
+            compName: comp ? comp.name : compName,
+            solidName: solidItem ? solidItem.name : solidName,
+            width: width,
+            height: height,
+            colorLabel: normalizedColor,
+            ratioLabel: normalizedRatio
         });
     };
 }());
