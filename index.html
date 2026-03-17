@@ -54,8 +54,28 @@
                     <option value="Custom">Custom</option>
                 </select>
 
-                <input id="bgColorPicker" type="color" value="#00ff00" disabled aria-label="Background color">
+                <button id="btnColorSwatch" type="button" class="create-comp-color-swatch" aria-label="Background color"></button>
                 <button id="btnSubmitCreateComp" type="button" class="btn-primary">Create</button>
+            </div>
+            <div id="createCompColorPopover" class="create-comp-color-popover" hidden>
+                <div class="create-comp-color-popover-row">
+                    <label for="bgColorHexInput" class="field-label create-comp-popover-label">Hex</label>
+                    <input id="bgColorHexInput" type="text" value="#00ff00" maxlength="7" spellcheck="false">
+                </div>
+                <div class="create-comp-color-popover-row create-comp-rgb-row">
+                    <label for="bgColorRInput" class="field-label create-comp-popover-label">R</label>
+                    <input id="bgColorRInput" type="number" min="0" max="255" value="0">
+                    <label for="bgColorGInput" class="field-label create-comp-popover-label">G</label>
+                    <input id="bgColorGInput" type="number" min="0" max="255" value="255">
+                    <label for="bgColorBInput" class="field-label create-comp-popover-label">B</label>
+                    <input id="bgColorBInput" type="number" min="0" max="255" value="0">
+                </div>
+                <div class="create-comp-color-presets">
+                    <button type="button" class="create-comp-color-chip" data-color-hex="#00ff00" title="Green"></button>
+                    <button type="button" class="create-comp-color-chip" data-color-hex="#0000ff" title="Blue"></button>
+                    <button type="button" class="create-comp-color-chip" data-color-hex="#ff00ff" title="Magenta"></button>
+                    <button id="btnApplyCustomColor" type="button" class="btn-primary">Apply</button>
+                </div>
             </div>
         </div>
     </div>

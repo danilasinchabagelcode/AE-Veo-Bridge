@@ -1044,6 +1044,7 @@
         var frameRate;
         var comp;
         var solidLayer;
+        var solidsFolder;
         var color;
         var normalizedRatio;
         var normalizedColor;
@@ -1086,19 +1087,26 @@
         try {
             comp = app.project.items.addComp(compName, width, height, 1, duration, frameRate);
             comp.parentFolder = app.project.rootFolder;
+            solidsFolder = _getOrCreateChildFolder(app.project.rootFolder, "Solids");
             solidLayer = comp.layers.addSolid(color, solidName, width, height, 1, duration);
             if (solidLayer) {
                 solidLayer.startTime = 0;
                 solidLayer.locked = true;
                 try {
-                    if (solidLayer.source) {
-                        solidLayer.source.parentFolder = app.project.rootFolder;
+                    if (solidLayer.source && solidsFolder) {
+                        solidLayer.source.parentFolder = solidsFolder;
                     }
                 } catch (sourceFolderError) {
                     // Ignore source folder reassignment issues.
                 }
             }
-            app.project.activeItem = comp;
+            try {
+                if (typeof comp.openInViewer === "function") {
+                    comp.openInViewer();
+                }
+            } catch (viewerError) {
+                // Ignore viewer activation errors.
+            }
         } catch (error) {
             app.endUndoGroup();
             return _makeError("CREATE_COMP_FAILED", "Failed to create composition with background.", {

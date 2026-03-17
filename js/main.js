@@ -235,25 +235,115 @@
         return { label: "16x9", width: 1920, height: 1080 };
     }
 
+    function clampColorChannel(value) {
+        var numeric = parseInt(value, 10);
+        if (!(numeric >= 0)) {
+            numeric = 0;
+        }
+        if (numeric > 255) {
+            numeric = 255;
+        }
+        return numeric;
+    }
+
+    function rgbToHex(rgb) {
+        function channelToHex(value) {
+            var hex = clampColorChannel(value).toString(16);
+            return hex.length < 2 ? "0" + hex : hex;
+        }
+
+        return "#" + channelToHex(rgb.r) + channelToHex(rgb.g) + channelToHex(rgb.b);
+    }
+
+    function hexToRgbSafe(hexValue) {
+        var normalized = String(hexValue || "").replace(/[^0-9a-f]/gi, "");
+        if (normalized.length === 3) {
+            normalized = normalized.charAt(0) + normalized.charAt(0) +
+                normalized.charAt(1) + normalized.charAt(1) +
+                normalized.charAt(2) + normalized.charAt(2);
+        }
+        if (normalized.length !== 6) {
+            return null;
+        }
+        return {
+            r: parseInt(normalized.substring(0, 2), 16),
+            g: parseInt(normalized.substring(2, 4), 16),
+            b: parseInt(normalized.substring(4, 6), 16)
+        };
+    }
+
+    function getCreateCompCustomColor() {
+        var hexInput = getById("bgColorHexInput");
+        var rgb = hexToRgbSafe(hexInput ? hexInput.value : "");
+        return rgb || { r: 0, g: 255, b: 0 };
+    }
+
+    function setCreateCompCustomColor(rgb) {
+        var swatch = getById("btnColorSwatch");
+        var hexInput = getById("bgColorHexInput");
+        var rInput = getById("bgColorRInput");
+        var gInput = getById("bgColorGInput");
+        var bInput = getById("bgColorBInput");
+        var hex;
+
+        rgb = {
+            r: clampColorChannel(rgb && rgb.r),
+            g: clampColorChannel(rgb && rgb.g),
+            b: clampColorChannel(rgb && rgb.b)
+        };
+        hex = rgbToHex(rgb);
+
+        if (swatch) {
+            swatch.style.backgroundColor = hex;
+        }
+        if (hexInput) {
+            hexInput.value = hex;
+        }
+        if (rInput) {
+            rInput.value = String(rgb.r);
+        }
+        if (gInput) {
+            gInput.value = String(rgb.g);
+        }
+        if (bInput) {
+            bInput.value = String(rgb.b);
+        }
+    }
+
+    function openCreateCompColorPopover() {
+        var popover = getById("createCompColorPopover");
+        if (!popover) {
+            return;
+        }
+        popover.hidden = false;
+    }
+
+    function closeCreateCompColorPopover() {
+        var popover = getById("createCompColorPopover");
+        if (!popover) {
+            return;
+        }
+        popover.hidden = true;
+    }
+
     function syncCreateCompColorUi() {
         var select = getById("bgColorSelect");
-        var picker = getById("bgColorPicker");
+        var swatch = getById("btnColorSwatch");
         var preset;
 
-        if (!select || !picker) {
+        if (!select || !swatch) {
             return;
         }
 
         if (select.value === "Custom") {
-            picker.disabled = false;
-            picker.removeAttribute("disabled");
+            swatch.disabled = false;
             return;
         }
 
         preset = COLOR_PRESETS[select.value] || COLOR_PRESETS.Green;
-        picker.value = preset.hex;
-        picker.disabled = true;
-        picker.setAttribute("disabled", "disabled");
+        setCreateCompCustomColor(preset);
+        swatch.disabled = true;
+        closeCreateCompColorPopover();
     }
 
     function onCaptureClick() {
@@ -531,6 +621,8 @@
         if (bgColorSelect) {
             bgColorSelect.value = "Green";
         }
+        setCreateCompCustomColor(COLOR_PRESETS.Green);
+        closeCreateCompColorPopover();
         syncCreateCompColorUi();
         modal.hidden = false;
     }
@@ -583,7 +675,6 @@
     function submitCreateComp() {
         var ratioSelect = getById("ratioSelect");
         var bgColorSelect = getById("bgColorSelect");
-        var colorPicker = getById("bgColorPicker");
         var ratioSpec;
         var colorLabel;
         var color;
@@ -593,7 +684,7 @@
             setStatus("Composition creation is already running.", true);
             return;
         }
-        if (!ratioSelect || !bgColorSelect || !colorPicker) {
+        if (!ratioSelect || !bgColorSelect) {
             setStatus("Create Composition UI is unavailable.", true);
             return;
         }
@@ -601,7 +692,7 @@
         ratioSpec = getRatioSpec(ratioSelect.value);
         colorLabel = bgColorSelect.value === "Custom" ? "Custom" : bgColorSelect.value;
         if (bgColorSelect.value === "Custom") {
-            color = toRgbObject(colorPicker.value);
+            color = getCreateCompCustomColor();
         } else {
             color = COLOR_PRESETS[bgColorSelect.value] || COLOR_PRESETS.Green;
         }
@@ -637,9 +728,16 @@
         var btnSaveApiKey = getById("btnSaveApiKey");
         var btnCloseSettings = getById("btnCloseSettings");
         var btnSubmitCreateComp = getById("btnSubmitCreateComp");
+        var btnColorSwatch = getById("btnColorSwatch");
+        var btnApplyCustomColor = getById("btnApplyCustomColor");
         var settingsModal = getById("settingsModal");
         var createCompModal = getById("createCompModal");
         var bgColorSelect = getById("bgColorSelect");
+        var hexInput = getById("bgColorHexInput");
+        var rInput = getById("bgColorRInput");
+        var gInput = getById("bgColorGInput");
+        var bInput = getById("bgColorBInput");
+        var colorPresetButtons = document.querySelectorAll(".create-comp-color-chip");
 
         if (btnCapture) {
             btnCapture.addEventListener("click", onCaptureClick);
@@ -664,11 +762,68 @@
         }
         if (bgColorSelect) {
             bgColorSelect.addEventListener("change", function () {
-                var picker = getById("bgColorPicker");
                 syncCreateCompColorUi();
-                if (bgColorSelect.value === "Custom" && picker && !picker.disabled && typeof picker.focus === "function") {
-                    picker.focus();
+                if (bgColorSelect.value === "Custom") {
+                    openCreateCompColorPopover();
+                    if (hexInput && typeof hexInput.focus === "function") {
+                        hexInput.focus();
+                    }
                 }
+            });
+        }
+        if (btnColorSwatch) {
+            btnColorSwatch.addEventListener("click", function () {
+                if (bgColorSelect && bgColorSelect.value !== "Custom") {
+                    return;
+                }
+                openCreateCompColorPopover();
+            });
+        }
+        if (btnApplyCustomColor) {
+            btnApplyCustomColor.addEventListener("click", function () {
+                var rgb = {
+                    r: rInput ? rInput.value : 0,
+                    g: gInput ? gInput.value : 255,
+                    b: bInput ? bInput.value : 0
+                };
+                setCreateCompCustomColor(rgb);
+                closeCreateCompColorPopover();
+            });
+        }
+        if (hexInput) {
+            hexInput.addEventListener("input", function () {
+                var rgb = hexToRgbSafe(hexInput.value);
+                if (!rgb) {
+                    return;
+                }
+                setCreateCompCustomColor(rgb);
+            });
+        }
+        function onRgbInputChange() {
+            setCreateCompCustomColor({
+                r: rInput ? rInput.value : 0,
+                g: gInput ? gInput.value : 255,
+                b: bInput ? bInput.value : 0
+            });
+        }
+        if (rInput) {
+            rInput.addEventListener("input", onRgbInputChange);
+        }
+        if (gInput) {
+            gInput.addEventListener("input", onRgbInputChange);
+        }
+        if (bInput) {
+            bInput.addEventListener("input", onRgbInputChange);
+        }
+        if (colorPresetButtons && colorPresetButtons.length) {
+            Array.prototype.forEach.call(colorPresetButtons, function (button) {
+                button.addEventListener("click", function () {
+                    var rgb = hexToRgbSafe(button.getAttribute("data-color-hex") || "");
+                    if (!rgb) {
+                        return;
+                    }
+                    setCreateCompCustomColor(rgb);
+                });
             });
         }
 
@@ -681,6 +836,10 @@
         }
         if (createCompModal) {
             createCompModal.addEventListener("click", function (event) {
+                var popover = getById("createCompColorPopover");
+                if (popover && !popover.hidden && event.target !== popover && !popover.contains(event.target) && event.target !== btnColorSwatch) {
+                    closeCreateCompColorPopover();
+                }
                 if (event.target === createCompModal) {
                     closeCreateCompModal();
                 }
@@ -689,6 +848,7 @@
 
         document.addEventListener("keydown", function (event) {
             if (event.key === "Escape") {
+                closeCreateCompColorPopover();
                 closeSettingsModal();
                 closeCreateCompModal();
             }
