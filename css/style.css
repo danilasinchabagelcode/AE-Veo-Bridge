@@ -56,14 +56,6 @@ body {
     gap: 12px;
 }
 
-.title {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-    color: #eceff5;
-}
-
 .card {
     border: 1px solid var(--line-soft);
     border-radius: 12px;
@@ -205,20 +197,12 @@ textarea {
     color: #ffdce1;
 }
 
-.muted-note {
-    margin: 0;
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
 .launcher-root {
     justify-content: flex-start;
 }
 
 .launcher-card {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
 }
 
 .launcher-toolbar {
@@ -251,16 +235,6 @@ textarea {
     justify-content: center;
     line-height: 1;
     transform: translateY(-1px);
-}
-
-#bgColorPicker {
-    height: 36px;
-    padding: 4px;
-    cursor: pointer;
-}
-
-#bgColorPicker:disabled {
-    cursor: not-allowed;
 }
 
 .modal-backdrop {
@@ -356,67 +330,114 @@ textarea {
     position: absolute;
     top: calc(100% - 6px);
     right: 14px;
-    width: 246px;
+    width: 386px;
     padding: 12px;
     border: 1px solid var(--line);
     border-radius: 12px;
     background: linear-gradient(180deg, #202938 0%, #1b2230 100%);
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
     z-index: 2;
 }
 
-.create-comp-color-popover-row {
-    display: flex;
-    align-items: center;
+.create-comp-picker-layout {
+    display: grid;
+    grid-template-columns: 274px 1fr;
+    gap: 12px;
+    align-items: start;
+}
+
+.create-comp-picker-canvases {
+    display: grid;
+    grid-template-columns: 248px 18px;
     gap: 8px;
+    align-items: stretch;
+}
+
+.create-comp-sv-canvas,
+.create-comp-hue-canvas {
+    display: block;
+    border-radius: 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    cursor: crosshair;
+    background: #0f1420;
+}
+
+.create-comp-hue-canvas {
+    cursor: ns-resize;
+}
+
+.create-comp-picker-side {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.create-comp-color-preview {
+    width: 72px;
+    height: 72px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: #00ff00;
+}
+
+.create-comp-color-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.create-comp-color-field-row {
+    display: grid;
+    grid-template-columns: 10px 12px 1fr auto;
+    gap: 6px;
+    align-items: center;
 }
 
 .create-comp-popover-label {
     margin: 0;
-    min-width: 20px;
+    min-width: 0;
+    color: #dce2ee;
 }
 
-.create-comp-rgb-row input {
-    width: 48px;
-    min-width: 48px;
-    padding-left: 8px;
-    padding-right: 8px;
+.create-comp-radio-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.66);
+    background: transparent;
 }
 
-.create-comp-color-presets {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.create-comp-color-chip {
-    width: 24px;
-    min-width: 24px;
+.create-comp-color-field-row input {
     height: 24px;
     min-height: 24px;
-    padding: 0;
-    border-radius: 7px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    padding: 4px 6px;
+    font-size: 12px;
 }
 
-.create-comp-color-chip[data-color-hex="#00ff00"] {
-    background: #00ff00;
+.create-comp-color-suffix {
+    color: #9fb8e8;
+    font-size: 12px;
+    min-width: 20px;
+    text-align: right;
 }
 
-.create-comp-color-chip[data-color-hex="#0000ff"] {
-    background: #0000ff;
+.create-comp-color-hex-row {
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 6px;
+    align-items: center;
 }
 
-.create-comp-color-chip[data-color-hex="#ff00ff"] {
-    background: #ff00ff;
+.create-comp-color-hash {
+    color: #dce2ee;
+    font-size: 13px;
+    text-align: center;
 }
 
-#btnApplyCustomColor {
-    margin-left: auto;
-    min-width: 72px;
+.create-comp-color-hex-row input {
+    height: 30px;
+    min-height: 30px;
+    padding: 6px 8px;
+    text-transform: uppercase;
 }
 
 .gallery-root {
@@ -1664,6 +1685,14 @@ body.gallery-flow {
     .create-comp-inline-row {
         grid-template-columns: auto 1fr auto 1fr 36px auto;
         gap: 10px;
+    }
+
+    .create-comp-color-popover {
+        width: min(386px, calc(100vw - 48px));
+    }
+
+    .create-comp-picker-layout {
+        grid-template-columns: 1fr;
     }
 }
 

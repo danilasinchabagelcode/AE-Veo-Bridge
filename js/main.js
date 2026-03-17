@@ -13,6 +13,16 @@
         Blue: { r: 0, g: 0, b: 255, hex: "#0000ff" },
         Magenta: { r: 255, g: 0, b: 255, hex: "#ff00ff" }
     };
+    var createCompColorState = {
+        h: 120,
+        s: 100,
+        v: 100,
+        r: 0,
+        g: 255,
+        b: 0,
+        hex: "#00FF00"
+    };
+    var createCompColorDragMode = "";
 
     function getById(id) {
         return document.getElementById(id);
@@ -213,18 +223,6 @@
         return JSON.stringify(String(value == null ? "" : value));
     }
 
-    function toRgbObject(hexValue) {
-        var normalized = String(hexValue || "").replace("#", "");
-        if (normalized.length !== 6) {
-            normalized = "000000";
-        }
-        return {
-            r: parseInt(normalized.substring(0, 2), 16),
-            g: parseInt(normalized.substring(2, 4), 16),
-            b: parseInt(normalized.substring(4, 6), 16)
-        };
-    }
-
     function getRatioSpec(ratioValue) {
         if (ratioValue === "1x1") {
             return { label: "1x1", width: 1080, height: 1080 };
@@ -246,13 +244,41 @@
         return numeric;
     }
 
+    function clampHue(value) {
+        var numeric = parseFloat(value);
+        if (!isFinite(numeric)) {
+            numeric = 0;
+        }
+        if (numeric < 0) {
+            numeric = 0;
+        }
+        if (numeric > 360) {
+            numeric = 360;
+        }
+        return numeric;
+    }
+
+    function clampPercent(value) {
+        var numeric = parseFloat(value);
+        if (!isFinite(numeric)) {
+            numeric = 0;
+        }
+        if (numeric < 0) {
+            numeric = 0;
+        }
+        if (numeric > 100) {
+            numeric = 100;
+        }
+        return numeric;
+    }
+
     function rgbToHex(rgb) {
         function channelToHex(value) {
             var hex = clampColorChannel(value).toString(16);
             return hex.length < 2 ? "0" + hex : hex;
         }
 
-        return "#" + channelToHex(rgb.r) + channelToHex(rgb.g) + channelToHex(rgb.b);
+        return ("#" + channelToHex(rgb.r) + channelToHex(rgb.g) + channelToHex(rgb.b)).toUpperCase();
     }
 
     function hexToRgbSafe(hexValue) {
@@ -272,42 +298,284 @@
         };
     }
 
-    function getCreateCompCustomColor() {
-        var hexInput = getById("bgColorHexInput");
-        var rgb = hexToRgbSafe(hexInput ? hexInput.value : "");
-        return rgb || { r: 0, g: 255, b: 0 };
+    function hsvToRgb(h, s, v) {
+        var hue = clampHue(h);
+        var sat = clampPercent(s) / 100;
+        var val = clampPercent(v) / 100;
+        var c = val * sat;
+        var x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+        var m = val - c;
+        var r1 = 0;
+        var g1 = 0;
+        var b1 = 0;
+
+        if (hue < 60) {
+            r1 = c; g1 = x; b1 = 0;
+        } else if (hue < 120) {
+            r1 = x; g1 = c; b1 = 0;
+        } else if (hue < 180) {
+            r1 = 0; g1 = c; b1 = x;
+        } else if (hue < 240) {
+            r1 = 0; g1 = x; b1 = c;
+        } else if (hue < 300) {
+            r1 = x; g1 = 0; b1 = c;
+        } else {
+            r1 = c; g1 = 0; b1 = x;
+        }
+
+        return {
+            r: Math.round((r1 + m) * 255),
+            g: Math.round((g1 + m) * 255),
+            b: Math.round((b1 + m) * 255)
+        };
     }
 
-    function setCreateCompCustomColor(rgb) {
+    function rgbToHsv(r, g, b) {
+        var red = clampColorChannel(r) / 255;
+        var green = clampColorChannel(g) / 255;
+        var blue = clampColorChannel(b) / 255;
+        var max = Math.max(red, green, blue);
+        var min = Math.min(red, green, blue);
+        var delta = max - min;
+        var hue = 0;
+        var sat = max === 0 ? 0 : delta / max;
+        var val = max;
+
+        if (delta !== 0) {
+            if (max === red) {
+                hue = 60 * (((green - blue) / delta) % 6);
+            } else if (max === green) {
+                hue = 60 * (((blue - red) / delta) + 2);
+            } else {
+                hue = 60 * (((red - green) / delta) + 4);
+            }
+        }
+
+        if (hue < 0) {
+            hue += 360;
+        }
+
+        return {
+            h: Math.round(hue),
+            s: Math.round(sat * 100),
+            v: Math.round(val * 100)
+        };
+    }
+
+    function getCreateCompCustomColor() {
+        return {
+            r: createCompColorState.r,
+            g: createCompColorState.g,
+            b: createCompColorState.b
+        };
+    }
+
+    function renderCreateCompSvCanvas() {
+        var canvas = getById("createCompSvCanvas");
+        var context;
+        var width;
+        var height;
+        var hueColor;
+        var whiteGradient;
+        var blackGradient;
+        var x;
+        var y;
+
+        if (!canvas || !canvas.getContext) {
+            return;
+        }
+        context = canvas.getContext("2d");
+        width = canvas.width;
+        height = canvas.height;
+        hueColor = hsvToRgb(createCompColorState.h, 100, 100);
+
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = rgbToHex(hueColor);
+        context.fillRect(0, 0, width, height);
+
+        whiteGradient = context.createLinearGradient(0, 0, width, 0);
+        whiteGradient.addColorStop(0, "#FFFFFF");
+        whiteGradient.addColorStop(1, "rgba(255,255,255,0)");
+        context.fillStyle = whiteGradient;
+        context.fillRect(0, 0, width, height);
+
+        blackGradient = context.createLinearGradient(0, 0, 0, height);
+        blackGradient.addColorStop(0, "rgba(0,0,0,0)");
+        blackGradient.addColorStop(1, "#000000");
+        context.fillStyle = blackGradient;
+        context.fillRect(0, 0, width, height);
+
+        x = Math.round((createCompColorState.s / 100) * (width - 1));
+        y = Math.round(((100 - createCompColorState.v) / 100) * (height - 1));
+        context.strokeStyle = "#FFFFFF";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.arc(x, y, 6, 0, Math.PI * 2, false);
+        context.stroke();
+        context.strokeStyle = "rgba(0,0,0,0.8)";
+        context.lineWidth = 1;
+        context.beginPath();
+        context.arc(x, y, 8, 0, Math.PI * 2, false);
+        context.stroke();
+    }
+
+    function renderCreateCompHueCanvas() {
+        var canvas = getById("createCompHueCanvas");
+        var context;
+        var height;
+        var gradient;
+        var markerY;
+
+        if (!canvas || !canvas.getContext) {
+            return;
+        }
+        context = canvas.getContext("2d");
+        height = canvas.height;
+        gradient = context.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, "#FF0000");
+        gradient.addColorStop(0.17, "#FFFF00");
+        gradient.addColorStop(0.33, "#00FF00");
+        gradient.addColorStop(0.5, "#00FFFF");
+        gradient.addColorStop(0.67, "#0000FF");
+        gradient.addColorStop(0.83, "#FF00FF");
+        gradient.addColorStop(1, "#FF0000");
+        context.clearRect(0, 0, canvas.width, height);
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, canvas.width, height);
+
+        markerY = Math.round((createCompColorState.h / 360) * (height - 1));
+        context.strokeStyle = "#FFFFFF";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.moveTo(0, markerY);
+        context.lineTo(canvas.width, markerY);
+        context.stroke();
+        context.strokeStyle = "rgba(0,0,0,0.8)";
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(0, markerY - 2);
+        context.lineTo(canvas.width, markerY - 2);
+        context.stroke();
+    }
+
+    function syncCreateCompPickerUi() {
         var swatch = getById("btnColorSwatch");
+        var preview = getById("createCompColorPreview");
         var hexInput = getById("bgColorHexInput");
+        var hInput = getById("bgColorHInput");
+        var sInput = getById("bgColorSInput");
+        var vInput = getById("bgColorVInput");
         var rInput = getById("bgColorRInput");
         var gInput = getById("bgColorGInput");
         var bInput = getById("bgColorBInput");
-        var hex;
 
+        if (swatch) {
+            swatch.style.backgroundColor = createCompColorState.hex;
+        }
+        if (preview) {
+            preview.style.backgroundColor = createCompColorState.hex;
+        }
+        if (hexInput) {
+            hexInput.value = createCompColorState.hex.replace(/^#/, "");
+        }
+        if (hInput) {
+            hInput.value = String(Math.round(createCompColorState.h));
+        }
+        if (sInput) {
+            sInput.value = String(Math.round(createCompColorState.s));
+        }
+        if (vInput) {
+            vInput.value = String(Math.round(createCompColorState.v));
+        }
+        if (rInput) {
+            rInput.value = String(createCompColorState.r);
+        }
+        if (gInput) {
+            gInput.value = String(createCompColorState.g);
+        }
+        if (bInput) {
+            bInput.value = String(createCompColorState.b);
+        }
+        renderCreateCompSvCanvas();
+        renderCreateCompHueCanvas();
+    }
+
+    function setCreateCompCustomColor(rgb) {
+        var hsv;
         rgb = {
             r: clampColorChannel(rgb && rgb.r),
             g: clampColorChannel(rgb && rgb.g),
             b: clampColorChannel(rgb && rgb.b)
         };
-        hex = rgbToHex(rgb);
+        hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+        createCompColorState.h = hsv.h;
+        createCompColorState.s = hsv.s;
+        createCompColorState.v = hsv.v;
+        createCompColorState.r = rgb.r;
+        createCompColorState.g = rgb.g;
+        createCompColorState.b = rgb.b;
+        createCompColorState.hex = rgbToHex(rgb);
+        syncCreateCompPickerUi();
+    }
 
-        if (swatch) {
-            swatch.style.backgroundColor = hex;
+    function setCreateCompColorFromHsv(h, s, v) {
+        var rgb = hsvToRgb(h, s, v);
+        createCompColorState.h = clampHue(h);
+        createCompColorState.s = clampPercent(s);
+        createCompColorState.v = clampPercent(v);
+        createCompColorState.r = rgb.r;
+        createCompColorState.g = rgb.g;
+        createCompColorState.b = rgb.b;
+        createCompColorState.hex = rgbToHex(rgb);
+        syncCreateCompPickerUi();
+    }
+
+    function getEventPoint(event) {
+        if (!event) {
+            return { x: 0, y: 0 };
         }
-        if (hexInput) {
-            hexInput.value = hex;
+        return {
+            x: typeof event.clientX === "number" ? event.clientX : 0,
+            y: typeof event.clientY === "number" ? event.clientY : 0
+        };
+    }
+
+    function updateCreateCompSvFromEvent(event) {
+        var canvas = getById("createCompSvCanvas");
+        var rect;
+        var point;
+        var x;
+        var y;
+        if (!canvas) {
+            return;
         }
-        if (rInput) {
-            rInput.value = String(rgb.r);
+        rect = canvas.getBoundingClientRect();
+        point = getEventPoint(event);
+        x = Math.max(0, Math.min(rect.width, point.x - rect.left));
+        y = Math.max(0, Math.min(rect.height, point.y - rect.top));
+        setCreateCompColorFromHsv(
+            createCompColorState.h,
+            (x / rect.width) * 100,
+            100 - ((y / rect.height) * 100)
+        );
+    }
+
+    function updateCreateCompHueFromEvent(event) {
+        var canvas = getById("createCompHueCanvas");
+        var rect;
+        var point;
+        var y;
+        if (!canvas) {
+            return;
         }
-        if (gInput) {
-            gInput.value = String(rgb.g);
-        }
-        if (bInput) {
-            bInput.value = String(rgb.b);
-        }
+        rect = canvas.getBoundingClientRect();
+        point = getEventPoint(event);
+        y = Math.max(0, Math.min(rect.height, point.y - rect.top));
+        setCreateCompColorFromHsv(
+            (y / rect.height) * 360,
+            createCompColorState.s,
+            createCompColorState.v
+        );
     }
 
     function openCreateCompColorPopover() {
@@ -639,6 +907,7 @@
         if (modal) {
             modal.hidden = true;
         }
+        closeCreateCompColorPopover();
     }
 
     function saveSettings() {
@@ -729,15 +998,20 @@
         var btnCloseSettings = getById("btnCloseSettings");
         var btnSubmitCreateComp = getById("btnSubmitCreateComp");
         var btnColorSwatch = getById("btnColorSwatch");
-        var btnApplyCustomColor = getById("btnApplyCustomColor");
         var settingsModal = getById("settingsModal");
         var createCompModal = getById("createCompModal");
         var bgColorSelect = getById("bgColorSelect");
+        var svCanvas = getById("createCompSvCanvas");
+        var hueCanvas = getById("createCompHueCanvas");
         var hexInput = getById("bgColorHexInput");
+        var hInput = getById("bgColorHInput");
+        var sInput = getById("bgColorSInput");
+        var vInput = getById("bgColorVInput");
         var rInput = getById("bgColorRInput");
         var gInput = getById("bgColorGInput");
         var bInput = getById("bgColorBInput");
-        var colorPresetButtons = document.querySelectorAll(".create-comp-color-chip");
+        var onColorDragMove;
+        var onColorDragEnd;
 
         if (btnCapture) {
             btnCapture.addEventListener("click", onCaptureClick);
@@ -779,15 +1053,24 @@
                 openCreateCompColorPopover();
             });
         }
-        if (btnApplyCustomColor) {
-            btnApplyCustomColor.addEventListener("click", function () {
-                var rgb = {
-                    r: rInput ? rInput.value : 0,
-                    g: gInput ? gInput.value : 255,
-                    b: bInput ? bInput.value : 0
-                };
-                setCreateCompCustomColor(rgb);
-                closeCreateCompColorPopover();
+        if (svCanvas) {
+            svCanvas.addEventListener("mousedown", function (event) {
+                if (bgColorSelect && bgColorSelect.value !== "Custom") {
+                    return;
+                }
+                createCompColorDragMode = "sv";
+                updateCreateCompSvFromEvent(event);
+                event.preventDefault();
+            });
+        }
+        if (hueCanvas) {
+            hueCanvas.addEventListener("mousedown", function (event) {
+                if (bgColorSelect && bgColorSelect.value !== "Custom") {
+                    return;
+                }
+                createCompColorDragMode = "hue";
+                updateCreateCompHueFromEvent(event);
+                event.preventDefault();
             });
         }
         if (hexInput) {
@@ -799,12 +1082,28 @@
                 setCreateCompCustomColor(rgb);
             });
         }
+        function onHsvInputChange() {
+            setCreateCompColorFromHsv(
+                hInput ? hInput.value : 0,
+                sInput ? sInput.value : 0,
+                vInput ? vInput.value : 0
+            );
+        }
         function onRgbInputChange() {
             setCreateCompCustomColor({
                 r: rInput ? rInput.value : 0,
                 g: gInput ? gInput.value : 255,
                 b: bInput ? bInput.value : 0
             });
+        }
+        if (hInput) {
+            hInput.addEventListener("input", onHsvInputChange);
+        }
+        if (sInput) {
+            sInput.addEventListener("input", onHsvInputChange);
+        }
+        if (vInput) {
+            vInput.addEventListener("input", onHsvInputChange);
         }
         if (rInput) {
             rInput.addEventListener("input", onRgbInputChange);
@@ -815,17 +1114,18 @@
         if (bInput) {
             bInput.addEventListener("input", onRgbInputChange);
         }
-        if (colorPresetButtons && colorPresetButtons.length) {
-            Array.prototype.forEach.call(colorPresetButtons, function (button) {
-                button.addEventListener("click", function () {
-                    var rgb = hexToRgbSafe(button.getAttribute("data-color-hex") || "");
-                    if (!rgb) {
-                        return;
-                    }
-                    setCreateCompCustomColor(rgb);
-                });
-            });
-        }
+        onColorDragMove = function (event) {
+            if (createCompColorDragMode === "sv") {
+                updateCreateCompSvFromEvent(event);
+            } else if (createCompColorDragMode === "hue") {
+                updateCreateCompHueFromEvent(event);
+            }
+        };
+        onColorDragEnd = function () {
+            createCompColorDragMode = "";
+        };
+        document.addEventListener("mousemove", onColorDragMove);
+        document.addEventListener("mouseup", onColorDragEnd);
 
         if (settingsModal) {
             settingsModal.addEventListener("click", function (event) {
@@ -857,6 +1157,7 @@
 
     document.addEventListener("DOMContentLoaded", function () {
         bindActions();
+        setCreateCompCustomColor(COLOR_PRESETS.Green);
 
         if (!window.VeoBridgeState || typeof window.VeoBridgeState.ensurePaths !== "function") {
             setStatus("VeoBridgeState is unavailable.", true);
