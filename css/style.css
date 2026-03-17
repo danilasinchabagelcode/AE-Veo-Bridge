@@ -242,8 +242,8 @@ textarea {
     inset: 0;
     background: rgba(7, 10, 16, 0.72);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
     z-index: 30;
     padding: 18px;
 }
@@ -329,9 +329,9 @@ textarea {
 .create-comp-color-popover {
     position: absolute;
     top: calc(100% - 6px);
-    right: 14px;
-    width: 386px;
-    padding: 12px;
+    left: 14px;
+    width: 198px;
+    padding: 8px;
     border: 1px solid var(--line);
     border-radius: 12px;
     background: linear-gradient(180deg, #202938 0%, #1b2230 100%);
@@ -341,15 +341,15 @@ textarea {
 
 .create-comp-picker-layout {
     display: grid;
-    grid-template-columns: 274px 1fr;
-    gap: 12px;
+    grid-template-columns: 135px 1fr;
+    gap: 8px;
     align-items: start;
 }
 
 .create-comp-picker-canvases {
     display: grid;
-    grid-template-columns: 248px 18px;
-    gap: 8px;
+    grid-template-columns: 121px 12px;
+    gap: 6px;
     align-items: stretch;
 }
 
@@ -369,12 +369,12 @@ textarea {
 .create-comp-picker-side {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 .create-comp-color-preview {
-    width: 72px;
-    height: 72px;
+    width: 24px;
+    height: 24px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: #00ff00;
 }
@@ -382,12 +382,12 @@ textarea {
 .create-comp-color-fields {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .create-comp-color-field-row {
     display: grid;
-    grid-template-columns: 10px 12px 1fr auto;
+    grid-template-columns: 10px 1fr;
     gap: 6px;
     align-items: center;
 }
@@ -396,28 +396,15 @@ textarea {
     margin: 0;
     min-width: 0;
     color: #dce2ee;
-}
-
-.create-comp-radio-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.66);
-    background: transparent;
-}
-
-.create-comp-color-field-row input {
-    height: 24px;
-    min-height: 24px;
-    padding: 4px 6px;
     font-size: 12px;
 }
 
-.create-comp-color-suffix {
-    color: #9fb8e8;
+.create-comp-number-input,
+.create-comp-color-hex-row input {
+    height: 22px;
+    min-height: 22px;
+    padding: 3px 6px;
     font-size: 12px;
-    min-width: 20px;
-    text-align: right;
 }
 
 .create-comp-color-hex-row {
@@ -434,10 +421,17 @@ textarea {
 }
 
 .create-comp-color-hex-row input {
-    height: 30px;
-    min-height: 30px;
-    padding: 6px 8px;
     text-transform: uppercase;
+}
+
+.create-comp-number-input::-webkit-outer-spin-button,
+.create-comp-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.create-comp-number-input[type="number"] {
+    -moz-appearance: textfield;
 }
 
 .gallery-root {
@@ -1688,7 +1682,7 @@ body.gallery-flow {
     }
 
     .create-comp-color-popover {
-        width: min(386px, calc(100vw - 48px));
+        width: min(198px, calc(100vw - 48px));
     }
 
     .create-comp-picker-layout {
