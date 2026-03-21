@@ -10099,6 +10099,13 @@
             }
         });
 
+    });
+
+    window.addEventListener("load", function () {
+        if (typeof window.setTimeout === "function") {
+            window.setTimeout(dispatchGalleryReadyEvent, 140);
+            return;
+        }
         dispatchGalleryReadyEvent();
     });
 
