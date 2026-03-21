@@ -3,13 +3,15 @@
 
     var STORAGE_KEY_API_KEY = "veobridge.apiKey";
     var cs = null;
+    var fs = null;
+    var path = null;
+    var os = null;
     var isCapturing = false;
     var isCreatingComp = false;
     var isGalleryOpening = false;
     var galleryOpeningTimer = null;
-    var hasGalleryReadySignal = false;
-    var galleryReadyListenerBound = false;
-    var GALLERY_READY_EVENT = "veobridge.gallery.ready";
+    var galleryHandshakePollTimer = null;
+    var currentGalleryOpenNonce = "";
     var COLOR_PRESETS = {
         Green: { r: 0, g: 255, b: 0, hex: "#00ff00" },
         Blue: { r: 0, g: 0, b: 255, hex: "#0000ff" },
@@ -44,6 +46,135 @@
             cs = new window.CSInterfaceLite();
         }
         return cs;
+    }
+
+    function ensureRuntimeDeps() {
+        if (!fs || !path || !os) {
+            try {
+                if (typeof require === "function") {
+                    fs = fs || require("fs");
+                    path = path || require("path");
+                    os = os || require("os");
+                }
+            } catch (error) {
+                fs = null;
+                path = null;
+                os = null;
+            }
+        }
+        return !!(fs && path && os);
+    }
+
+    function ensureDirRecursive(dirPath) {
+        var parent;
+
+        if (!ensureRuntimeDeps() || !dirPath) {
+            return false;
+        }
+
+        try {
+            if (fs.existsSync(dirPath)) {
+                return true;
+            }
+        } catch (existsError) {
+            return false;
+        }
+
+        parent = path.dirname(dirPath);
+        if (parent && parent !== dirPath) {
+            if (!ensureDirRecursive(parent)) {
+                return false;
+            }
+        }
+
+        try {
+            fs.mkdirSync(dirPath);
+            return true;
+        } catch (mkdirError) {
+            try {
+                return fs.existsSync(dirPath);
+            } catch (checkError) {
+                return false;
+            }
+        }
+    }
+
+    function resolveUserDataDir() {
+        var home = "";
+        var env;
+
+        if (!ensureRuntimeDeps() || typeof process === "undefined") {
+            return null;
+        }
+
+        env = process.env || {};
+        home = os.homedir ? os.homedir() : (env.HOME || "");
+        if (!home) {
+            return null;
+        }
+        if (process.platform === "win32") {
+            return env.APPDATA || path.join(home, "AppData", "Roaming");
+        }
+        if (process.platform === "darwin") {
+            return path.join(home, "Library", "Application Support");
+        }
+        return env.XDG_CONFIG_HOME || path.join(home, ".config");
+    }
+
+    function getRuntimeFilePath() {
+        var userDataDir = resolveUserDataDir();
+        if (!userDataDir || !path) {
+            return null;
+        }
+        return path.join(userDataDir, "VeoBridge", "runtime.json");
+    }
+
+    function readRuntimeState() {
+        var filePath = getRuntimeFilePath();
+        var raw = "";
+
+        if (!filePath || !ensureRuntimeDeps()) {
+            return {};
+        }
+        try {
+            if (!fs.existsSync(filePath)) {
+                return {};
+            }
+            raw = fs.readFileSync(filePath, "utf8");
+            return raw ? JSON.parse(raw) : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function writeRuntimeStatePatch(patch) {
+        var filePath = getRuntimeFilePath();
+        var dirPath;
+        var current;
+        var key;
+
+        if (!filePath || !ensureRuntimeDeps()) {
+            return false;
+        }
+
+        dirPath = path.dirname(filePath);
+        if (!ensureDirRecursive(dirPath)) {
+            return false;
+        }
+
+        current = readRuntimeState();
+        for (key in patch) {
+            if (patch.hasOwnProperty(key)) {
+                current[key] = patch[key];
+            }
+        }
+
+        try {
+            fs.writeFileSync(filePath, JSON.stringify(current, null, 2), "utf8");
+            return true;
+        } catch (errorWrite) {
+            return false;
+        }
     }
 
     function readHostEnvironment() {
@@ -82,12 +213,21 @@
             return false;
         }
         isGalleryOpening = true;
+        currentGalleryOpenNonce = "gallery_" + String(new Date().getTime()) + "_" + String(Math.floor(Math.random() * 1000000));
         if (galleryOpeningTimer && typeof window.clearTimeout === "function") {
             window.clearTimeout(galleryOpeningTimer);
             galleryOpeningTimer = null;
         }
+        if (galleryHandshakePollTimer && typeof window.clearInterval === "function") {
+            window.clearInterval(galleryHandshakePollTimer);
+            galleryHandshakePollTimer = null;
+        }
         if (typeof window.setTimeout === "function") {
             galleryOpeningTimer = window.setTimeout(function () {
+                if (galleryHandshakePollTimer && typeof window.clearInterval === "function") {
+                    window.clearInterval(galleryHandshakePollTimer);
+                    galleryHandshakePollTimer = null;
+                }
                 setStatus(withOpenDebug("Gallery opening timed out.", getGalleryOpenStrategyHint()), true);
                 isGalleryOpening = false;
                 galleryOpeningTimer = null;
@@ -98,9 +238,14 @@
 
     function endGalleryOpenAttempt() {
         isGalleryOpening = false;
+        currentGalleryOpenNonce = "";
         if (galleryOpeningTimer && typeof window.clearTimeout === "function") {
             window.clearTimeout(galleryOpeningTimer);
             galleryOpeningTimer = null;
+        }
+        if (galleryHandshakePollTimer && typeof window.clearInterval === "function") {
+            window.clearInterval(galleryHandshakePollTimer);
+            galleryHandshakePollTimer = null;
         }
     }
 
@@ -626,32 +771,41 @@
         bridge.requestOpenExtension("com.veobridge.gallery", "");
     }
 
-    function onGalleryReadyEvent() {
-        hasGalleryReadySignal = true;
-        if (!isGalleryOpening) {
-            return;
-        }
-        try {
-            requestGalleryOpen();
-            endGalleryOpenAttempt();
-            setStatus(withOpenDebug("Gallery opened.", "cep:handshake"), false);
-        } catch (error) {
-            endGalleryOpenAttempt();
-            setStatus(withOpenDebug("Failed to open Gallery window.", "cep:handshake"), true);
-        }
+    function hasGalleryRuntimeAck(nonce) {
+        var runtime = readRuntimeState();
+        return runtime && runtime.galleryReadyNonce === nonce;
     }
 
-    function bindGalleryReadyListener() {
-        var bridge = ensureCs();
-        if (galleryReadyListenerBound || !bridge || typeof bridge.addEventListener !== "function") {
+    function startGalleryOpenHandshake(nonce) {
+        if (typeof window.setInterval !== "function") {
             return;
         }
-        bridge.addEventListener(GALLERY_READY_EVENT, onGalleryReadyEvent);
-        galleryReadyListenerBound = true;
+        galleryHandshakePollTimer = window.setInterval(function () {
+            if (!isGalleryOpening || !nonce || currentGalleryOpenNonce !== nonce) {
+                if (galleryHandshakePollTimer && typeof window.clearInterval === "function") {
+                    window.clearInterval(galleryHandshakePollTimer);
+                    galleryHandshakePollTimer = null;
+                }
+                return;
+            }
+            if (!hasGalleryRuntimeAck(nonce)) {
+                return;
+            }
+            try {
+                requestGalleryOpen();
+                endGalleryOpenAttempt();
+                setStatus(withOpenDebug("Gallery opened.", "storage:handshake"), false);
+            } catch (error) {
+                endGalleryOpenAttempt();
+                setStatus(withOpenDebug("Failed to open Gallery window.", "storage:handshake"), true);
+            }
+        }, 90);
     }
 
     function openGalleryWindow() {
         var primaryStrategy = getGalleryOpenStrategyHint();
+        var openNonce = "";
+        var writeOk = false;
 
         if (!beginGalleryOpenAttempt()) {
             setStatus(withOpenDebug("Opening Gallery...", primaryStrategy), false);
@@ -659,13 +813,20 @@
         }
 
         try {
+            openNonce = currentGalleryOpenNonce;
+            writeOk = writeRuntimeStatePatch({
+                pendingOpenNonce: openNonce,
+                pendingOpenRequestedAt: new Date().getTime(),
+                galleryReadyNonce: null
+            });
             requestGalleryOpen();
-            if (hasGalleryReadySignal) {
+            if (writeOk) {
+                startGalleryOpenHandshake(openNonce);
+                setStatus(withOpenDebug("Opening Gallery...", "storage:requestOpenExtension"), false);
+            } else {
                 endGalleryOpenAttempt();
-                setStatus(withOpenDebug("Gallery opened.", "cep:direct"), false);
-                return;
+                setStatus(withOpenDebug("Gallery open handshake could not initialize.", primaryStrategy), true);
             }
-            setStatus(withOpenDebug("Opening Gallery...", primaryStrategy), false);
         } catch (error) {
             endGalleryOpenAttempt();
             setStatus(withOpenDebug("Failed to open Gallery window.", primaryStrategy), true);
@@ -988,7 +1149,6 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        bindGalleryReadyListener();
         bindActions();
         setCreateCompCustomColor(COLOR_PRESETS.Green);
 

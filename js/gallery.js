@@ -97,7 +97,6 @@
     var queueAdapter = null;
     var renderAdapter = null;
     var actionsAdapter = null;
-    var galleryReadyDispatched = false;
 
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
@@ -260,31 +259,128 @@
         return cs;
     }
 
-    function dispatchGalleryReadyEvent() {
-        var bridge = ensureCs();
-        var event = null;
+    function resolveUserDataDir() {
+        var home = "";
+        var env;
 
-        if (galleryReadyDispatched) {
-            return;
+        if (!path || !os || typeof process === "undefined") {
+            return null;
         }
-        if (!bridge || typeof bridge.dispatchEvent !== "function") {
-            return;
+
+        env = process.env || {};
+        home = os.homedir ? os.homedir() : (env.HOME || "");
+        if (!home) {
+            return null;
         }
-        if (typeof window.CSEvent !== "function") {
-            return;
+        if (process.platform === "win32") {
+            return env.APPDATA || path.join(home, "AppData", "Roaming");
+        }
+        if (process.platform === "darwin") {
+            return path.join(home, "Library", "Application Support");
+        }
+        return env.XDG_CONFIG_HOME || path.join(home, ".config");
+    }
+
+    function ensureDirRecursive(dirPath) {
+        var parent;
+
+        if (!fs || !path || !dirPath) {
+            return false;
         }
 
         try {
-            event = new window.CSEvent("veobridge.gallery.ready", "APPLICATION");
-            event.data = JSON.stringify({
-                ready: true,
-                timestamp: new Date().getTime()
-            });
-            bridge.dispatchEvent(event);
-            galleryReadyDispatched = true;
-        } catch (dispatchError) {
-            galleryReadyDispatched = false;
+            if (fs.existsSync(dirPath)) {
+                return true;
+            }
+        } catch (existsError) {
+            return false;
         }
+
+        parent = path.dirname(dirPath);
+        if (parent && parent !== dirPath) {
+            if (!ensureDirRecursive(parent)) {
+                return false;
+            }
+        }
+
+        try {
+            fs.mkdirSync(dirPath);
+            return true;
+        } catch (mkdirError) {
+            try {
+                return fs.existsSync(dirPath);
+            } catch (checkError) {
+                return false;
+            }
+        }
+    }
+
+    function getRuntimeFilePath() {
+        var userDataDir = resolveUserDataDir();
+        if (!userDataDir || !path) {
+            return null;
+        }
+        return path.join(userDataDir, "VeoBridge", "runtime.json");
+    }
+
+    function readRuntimeState() {
+        var filePath = getRuntimeFilePath();
+        var raw = "";
+
+        if (!filePath || !fs) {
+            return {};
+        }
+        try {
+            if (!fs.existsSync(filePath)) {
+                return {};
+            }
+            raw = fs.readFileSync(filePath, "utf8");
+            return raw ? JSON.parse(raw) : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function writeRuntimeStatePatch(patch) {
+        var filePath = getRuntimeFilePath();
+        var dirPath;
+        var current;
+        var key;
+
+        if (!filePath || !fs || !path) {
+            return false;
+        }
+        dirPath = path.dirname(filePath);
+        if (!ensureDirRecursive(dirPath)) {
+            return false;
+        }
+
+        current = readRuntimeState();
+        for (key in patch) {
+            if (patch.hasOwnProperty(key)) {
+                current[key] = patch[key];
+            }
+        }
+
+        try {
+            fs.writeFileSync(filePath, JSON.stringify(current, null, 2), "utf8");
+            return true;
+        } catch (writeError) {
+            return false;
+        }
+    }
+
+    function acknowledgePendingGalleryOpen() {
+        var runtime = readRuntimeState();
+        var pendingOpenNonce = runtime && runtime.pendingOpenNonce ? String(runtime.pendingOpenNonce) : "";
+
+        if (!pendingOpenNonce) {
+            return;
+        }
+        writeRuntimeStatePatch({
+            galleryReadyNonce: pendingOpenNonce,
+            galleryLastSeenAt: new Date().getTime()
+        });
     }
 
     function parseHostResult(raw) {
@@ -10079,6 +10175,7 @@
         });
 
         window.addEventListener("focus", function () {
+            acknowledgePendingGalleryOpen();
             probeVideoCapabilities(false);
             markStalePendingJobs({
                 notify: true
@@ -10103,10 +10200,10 @@
 
     window.addEventListener("load", function () {
         if (typeof window.setTimeout === "function") {
-            window.setTimeout(dispatchGalleryReadyEvent, 140);
+            window.setTimeout(acknowledgePendingGalleryOpen, 140);
             return;
         }
-        dispatchGalleryReadyEvent();
+        acknowledgePendingGalleryOpen();
     });
 
     window.addEventListener("error", function (event) {
