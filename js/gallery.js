@@ -97,6 +97,7 @@
     var queueAdapter = null;
     var renderAdapter = null;
     var actionsAdapter = null;
+    var galleryReadyDispatched = false;
 
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
@@ -257,6 +258,33 @@
             cs = new window.CSInterfaceLite();
         }
         return cs;
+    }
+
+    function dispatchGalleryReadyEvent() {
+        var bridge = ensureCs();
+        var event = null;
+
+        if (galleryReadyDispatched) {
+            return;
+        }
+        if (!bridge || typeof bridge.dispatchEvent !== "function") {
+            return;
+        }
+        if (typeof window.CSEvent !== "function") {
+            return;
+        }
+
+        try {
+            event = new window.CSEvent("veobridge.gallery.ready", "APPLICATION");
+            event.data = JSON.stringify({
+                ready: true,
+                timestamp: new Date().getTime()
+            });
+            bridge.dispatchEvent(event);
+            galleryReadyDispatched = true;
+        } catch (dispatchError) {
+            galleryReadyDispatched = false;
+        }
     }
 
     function parseHostResult(raw) {
@@ -10070,6 +10098,8 @@
                 pendingVideoResumeTimer = null;
             }
         });
+
+        dispatchGalleryReadyEvent();
     });
 
     window.addEventListener("error", function (event) {
