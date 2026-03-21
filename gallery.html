@@ -141,7 +141,6 @@
                                 <select id="modelSelect">
                                     <option value="veo-3.1-generate-preview">Veo 3.1</option>
                                     <option value="veo-3.1-fast-generate-preview">Veo 3.1 Fast</option>
-                                    <option value="veo-3.0-generate-001">Veo 3.0</option>
                                 </select>
                             </label>
                         </div>
@@ -216,8 +215,13 @@
                     <div class="flow-picker-head">
                         <h2 id="mediaPreviewTitle">Media Preview</h2>
                         <div class="flow-media-preview-actions">
-                            <button id="btnMediaPreviewImport" type="button">Import</button>
-                            <button id="btnMediaPreviewImportComp" type="button">Import to Comp</button>
+                            <div class="flow-inline-menu">
+                                <button id="btnMediaPreviewImport" type="button">Import</button>
+                                <div id="mediaPreviewImportMenu" class="flow-inline-menu-popover" hidden>
+                                    <button id="btnMediaPreviewImportProject" type="button">Import to Project</button>
+                                    <button id="btnMediaPreviewImportComp" type="button">Import to Comp</button>
+                                </div>
+                            </div>
                             <button id="btnMediaPreviewCapture" type="button" title="Capture current frame">Capture</button>
                             <button id="btnMediaPreviewToFrames" type="button">To Frames</button>
                             <button id="btnMediaPreviewReveal" type="button">Reveal</button>

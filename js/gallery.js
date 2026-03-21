@@ -337,6 +337,16 @@
         return value === "9:16" ? "9:16" : "16:9";
     }
 
+    function guessVideoAspectRatioFromShot(shot) {
+        var width = shot && typeof shot.width === "number" ? shot.width : parseFloat(shot && shot.width);
+        var height = shot && typeof shot.height === "number" ? shot.height : parseFloat(shot && shot.height);
+
+        if (!(width > 0) || !(height > 0)) {
+            return "";
+        }
+        return height > width ? "9:16" : "16:9";
+    }
+
     function normalizeVideoMode(value) {
         var mode = trimText(value);
         if (mode === "image" || mode === "interpolation") {
@@ -2171,7 +2181,23 @@
     function openMediaPreview(kind, mediaId) {
         mediaPreviewKind = kind === "image" ? "image" : (kind === "video" ? "video" : "");
         mediaPreviewId = mediaId ? String(mediaId) : "";
+        closeMediaPreviewImportMenu();
         renderMediaPreviewOverlay(getState());
+    }
+
+    function closeMediaPreviewImportMenu() {
+        var menu = getById("mediaPreviewImportMenu");
+        if (menu) {
+            menu.hidden = true;
+        }
+    }
+
+    function toggleMediaPreviewImportMenu() {
+        var menu = getById("mediaPreviewImportMenu");
+        if (!menu) {
+            return;
+        }
+        menu.hidden = !menu.hidden;
     }
 
     function closeMediaPreview() {
@@ -2192,6 +2218,7 @@
         if (overlay) {
             overlay.hidden = true;
         }
+        closeMediaPreviewImportMenu();
         mediaPreviewKind = "";
         mediaPreviewId = "";
     }
@@ -2229,6 +2256,7 @@
                 selectedShotId: shotId,
                 startShotId: shotId
             });
+            maybeAutoApplyVideoAspectRatioFromShotId(shotId);
             setStatus("Start frame set.", false);
             closeShotPicker();
             return true;
@@ -2238,6 +2266,7 @@
                 selectedShotId: shotId,
                 endShotId: shotId
             });
+            maybeAutoApplyVideoAspectRatioFromShotId(shotId);
             setStatus("End frame set.", false);
             closeShotPicker();
             return true;
@@ -5395,6 +5424,7 @@
         var imageEl = getById("mediaPreviewImage");
         var metaEl = getById("mediaPreviewMeta");
         var btnImport = getById("btnMediaPreviewImport");
+        var btnImportProject = getById("btnMediaPreviewImportProject");
         var btnImportComp = getById("btnMediaPreviewImportComp");
         var btnCapture = getById("btnMediaPreviewCapture");
         var btnToFrames = getById("btnMediaPreviewToFrames");
@@ -5432,6 +5462,9 @@
 
         if (btnImport) {
             btnImport.hidden = false;
+        }
+        if (btnImportProject) {
+            btnImportProject.hidden = false;
         }
         if (btnImportComp) {
             btnImportComp.hidden = false;
@@ -7278,6 +7311,7 @@
         }
 
         stateAdapterUpdate({ startShotId: state.selectedShotId });
+        maybeAutoApplyVideoAspectRatioFromShotId(state.selectedShotId);
         setStatus("Start frame set.", false);
     }
 
@@ -7289,6 +7323,7 @@
         }
 
         stateAdapterUpdate({ endShotId: state.selectedShotId });
+        maybeAutoApplyVideoAspectRatioFromShotId(state.selectedShotId);
         setStatus("End frame set.", false);
     }
 
@@ -9282,6 +9317,46 @@
         });
     }
 
+    function persistVideoAspectRatioChoice(nextValue) {
+        var aspectRatio = normalizeAspectRatio(nextValue || "16:9");
+        try {
+            window.localStorage.setItem(STORAGE_KEY_ASPECT_RATIO, aspectRatio);
+            if (window.VeoBridgeSettings && typeof window.VeoBridgeSettings.saveSettings === "function") {
+                window.VeoBridgeSettings.saveSettings({ aspectRatio: aspectRatio });
+            }
+        } catch (error) {
+            // ignore
+        }
+        persistVideoGenSettings({ aspectRatio: aspectRatio });
+    }
+
+    function maybeAutoApplyVideoAspectRatioFromShotId(shotId) {
+        var state;
+        var shot;
+        var nextRatio;
+        var aspectRatioSelect;
+
+        if (!shotId) {
+            return;
+        }
+
+        state = getState();
+        if (activeGenerationType !== GEN_TYPE_VIDEO || normalizeVideoMode(getVideoGenSettings(state).mode) !== VIDEO_MODE_FRAMES) {
+            return;
+        }
+
+        shot = findShotById(state.shots || [], shotId);
+        nextRatio = guessVideoAspectRatioFromShot(shot);
+        aspectRatioSelect = getById("aspectRatioSelect");
+        if (!nextRatio || !aspectRatioSelect) {
+            return;
+        }
+
+        aspectRatioSelect.value = nextRatio;
+        persistVideoAspectRatioChoice(nextRatio);
+        renderFlowComposerSummary(getState());
+    }
+
     function setVideoMode(mode) {
         var nextMode = normalizeVideoMode(mode);
         var state = getState();
@@ -9395,6 +9470,8 @@
         var mediaPreviewOverlay = getById("mediaPreviewOverlay");
         var btnCloseMediaPreview = getById("btnCloseMediaPreview");
         var btnMediaPreviewImport = getById("btnMediaPreviewImport");
+        var mediaPreviewImportMenu = getById("mediaPreviewImportMenu");
+        var btnMediaPreviewImportProject = getById("btnMediaPreviewImportProject");
         var btnMediaPreviewImportComp = getById("btnMediaPreviewImportComp");
         var btnMediaPreviewCapture = getById("btnMediaPreviewCapture");
         var btnMediaPreviewToFrames = getById("btnMediaPreviewToFrames");
@@ -9506,24 +9583,27 @@
         }
         if (btnMediaPreviewImport) {
             btnMediaPreviewImport.addEventListener("click", function () {
+                toggleMediaPreviewImportMenu();
+            });
+        }
+        if (btnMediaPreviewImportProject) {
+            btnMediaPreviewImportProject.addEventListener("click", function () {
                 if (mediaPreviewKind === "video") {
                     importSelectedVideo(mediaPreviewId);
-                    return;
-                }
-                if (mediaPreviewKind === "image") {
+                } else if (mediaPreviewKind === "image") {
                     importSelectedImage(mediaPreviewId);
                 }
+                closeMediaPreviewImportMenu();
             });
         }
         if (btnMediaPreviewImportComp) {
             btnMediaPreviewImportComp.addEventListener("click", function () {
                 if (mediaPreviewKind === "video") {
                     importSelectedVideoToActiveComp(mediaPreviewId);
-                    return;
-                }
-                if (mediaPreviewKind === "image") {
+                } else if (mediaPreviewKind === "image") {
                     importSelectedImageToActiveComp(mediaPreviewId);
                 }
+                closeMediaPreviewImportMenu();
             });
         }
         if (btnMediaPreviewCapture) {
@@ -9542,6 +9622,7 @@
         }
         if (btnMediaPreviewReveal) {
             btnMediaPreviewReveal.addEventListener("click", function () {
+                closeMediaPreviewImportMenu();
                 if (mediaPreviewKind === "video") {
                     revealSelectedVideo(mediaPreviewId);
                     return;
@@ -9553,6 +9634,7 @@
         }
         if (btnMediaPreviewDelete) {
             btnMediaPreviewDelete.addEventListener("click", function () {
+                closeMediaPreviewImportMenu();
                 if (mediaPreviewKind === "video") {
                     deleteSelectedVideo(mediaPreviewId);
                 } else if (mediaPreviewKind === "image") {
@@ -9561,6 +9643,18 @@
                 closeMediaPreview();
             });
         }
+        document.addEventListener("click", function (event) {
+            if (!mediaPreviewImportMenu || mediaPreviewImportMenu.hidden) {
+                return;
+            }
+            if (event && btnMediaPreviewImport && event.target === btnMediaPreviewImport) {
+                return;
+            }
+            if (event && mediaPreviewImportMenu.contains && mediaPreviewImportMenu.contains(event.target)) {
+                return;
+            }
+            closeMediaPreviewImportMenu();
+        });
         if (btnClearStart) {
             btnClearStart.addEventListener("click", clearStart);
         }
@@ -9763,15 +9857,7 @@
             aspectRatioSelect.addEventListener("change", function () {
                 var nextValue = normalizeAspectRatio(aspectRatioSelect.value || "16:9");
                 aspectRatioSelect.value = nextValue;
-                try {
-                    window.localStorage.setItem(STORAGE_KEY_ASPECT_RATIO, nextValue);
-                    if (window.VeoBridgeSettings && typeof window.VeoBridgeSettings.saveSettings === "function") {
-                        window.VeoBridgeSettings.saveSettings({ aspectRatio: nextValue });
-                    }
-                } catch (error) {
-                    // ignore
-                }
-                persistVideoGenSettings({ aspectRatio: nextValue });
+                persistVideoAspectRatioChoice(nextValue, true);
                 renderFlowComposerSummary(getState());
             });
         }
