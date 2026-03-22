@@ -200,6 +200,37 @@
         return "cep:requestOpenExtension";
     }
 
+    function getHostOsFamily() {
+        var cep = window.__adobe_cep__;
+        var osInfo = "";
+
+        if (cep && typeof cep.getOSInformation === "function") {
+            try {
+                osInfo = String(cep.getOSInformation() || "").toLowerCase();
+            } catch (osInfoError) {
+                osInfo = "";
+            }
+        }
+
+        if (osInfo.indexOf("windows") >= 0 || osInfo.indexOf("win") >= 0) {
+            return "win";
+        }
+        if (osInfo.indexOf("mac") >= 0 || osInfo.indexOf("darwin") >= 0 || osInfo.indexOf("os x") >= 0) {
+            return "mac";
+        }
+
+        if (typeof process !== "undefined" && process && process.platform) {
+            if (process.platform === "win32") {
+                return "win";
+            }
+            if (process.platform === "darwin") {
+                return "mac";
+            }
+        }
+
+        return "other";
+    }
+
     function withOpenDebug(text, strategy) {
         var label = String(strategy || "");
         if (!label) {
@@ -776,7 +807,8 @@
         return runtime && runtime.galleryReadyNonce === nonce;
     }
 
-    function startGalleryOpenHandshake(nonce) {
+    function startGalleryOpenHandshake(nonce, osFamily) {
+        var settleDelayMs = osFamily === "win" ? 750 : 0;
         if (typeof window.setInterval !== "function") {
             return;
         }
@@ -791,19 +823,29 @@
             if (!hasGalleryRuntimeAck(nonce)) {
                 return;
             }
-            try {
-                requestGalleryOpen();
-                endGalleryOpenAttempt();
-                setStatus(withOpenDebug("Gallery opened.", "storage:handshake"), false);
-            } catch (error) {
-                endGalleryOpenAttempt();
-                setStatus(withOpenDebug("Failed to open Gallery window.", "storage:handshake"), true);
+            if (galleryHandshakePollTimer && typeof window.clearInterval === "function") {
+                window.clearInterval(galleryHandshakePollTimer);
+                galleryHandshakePollTimer = null;
             }
+            window.setTimeout(function () {
+                if (!isGalleryOpening || !nonce || currentGalleryOpenNonce !== nonce) {
+                    return;
+                }
+                try {
+                    requestGalleryOpen();
+                    endGalleryOpenAttempt();
+                    setStatus(withOpenDebug("Gallery opened.", osFamily === "win" ? "win:storage:handshake" : "storage:handshake"), false);
+                } catch (error) {
+                    endGalleryOpenAttempt();
+                    setStatus(withOpenDebug("Failed to open Gallery window.", osFamily === "win" ? "win:storage:handshake" : "storage:handshake"), true);
+                }
+            }, settleDelayMs);
         }, 40);
     }
 
     function openGalleryWindow() {
         var primaryStrategy = getGalleryOpenStrategyHint();
+        var osFamily = getHostOsFamily();
         var openNonce = "";
         var writeOk = false;
 
@@ -814,15 +856,15 @@
 
         try {
             openNonce = currentGalleryOpenNonce;
+            requestGalleryOpen();
             writeOk = writeRuntimeStatePatch({
                 pendingOpenNonce: openNonce,
                 pendingOpenRequestedAt: new Date().getTime(),
                 galleryReadyNonce: null
             });
-            requestGalleryOpen();
             if (writeOk) {
-                startGalleryOpenHandshake(openNonce);
-                setStatus(withOpenDebug("Opening Gallery...", "storage:requestOpenExtension"), false);
+                startGalleryOpenHandshake(openNonce, osFamily);
+                setStatus(withOpenDebug("Opening Gallery...", osFamily === "win" ? "win:storage:requestOpenExtension" : "storage:requestOpenExtension"), false);
             } else {
                 endGalleryOpenAttempt();
                 setStatus(withOpenDebug("Gallery open handshake could not initialize.", primaryStrategy), true);
