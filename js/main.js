@@ -231,7 +231,7 @@
                 setStatus(withOpenDebug("Gallery opening timed out.", getGalleryOpenStrategyHint()), true);
                 isGalleryOpening = false;
                 galleryOpeningTimer = null;
-            }, 3000);
+            }, 2500);
         }
         return true;
     }
@@ -799,7 +799,7 @@
                 endGalleryOpenAttempt();
                 setStatus(withOpenDebug("Failed to open Gallery window.", "storage:handshake"), true);
             }
-        }, 90);
+        }, 40);
     }
 
     function openGalleryWindow() {

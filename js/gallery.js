@@ -10137,6 +10137,7 @@
         updateUndoDeleteButtonState();
         refreshBusyUi();
         schedulePendingVideoResume(280);
+        acknowledgePendingGalleryOpen();
 
         if (typeof window.VeoBridgeState.ensurePaths === "function") {
             window.VeoBridgeState.ensurePaths(function (error, pathsResult) {
@@ -10199,10 +10200,6 @@
     });
 
     window.addEventListener("load", function () {
-        if (typeof window.setTimeout === "function") {
-            window.setTimeout(acknowledgePendingGalleryOpen, 140);
-            return;
-        }
         acknowledgePendingGalleryOpen();
     });
 
