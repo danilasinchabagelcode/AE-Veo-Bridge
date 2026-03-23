@@ -13,10 +13,10 @@
                 <h1 class="title">Veo Bridge Studio</h1>
             </div>
             <div class="gallery-topbar-actions">
-                <button id="btnDiagnostics" type="button">Diagnostics...</button>
-                <button id="btnCleanup" type="button">Cleanup...</button>
-                <button id="btnUndoDelete" type="button" disabled>Undo Delete</button>
-                <button id="btnClose" type="button">Close</button>
+                <button id="btnDiagnostics" type="button" title="Export diagnostics bundle">Diagnostics...</button>
+                <button id="btnCleanup" type="button" title="Remove orphaned VeoBridge files and clear VeoBridge trash">Cleanup...</button>
+                <button id="btnUndoDelete" type="button" title="Restore the last deleted VeoBridge item" disabled>Undo Delete</button>
+                <button id="btnClose" type="button" title="Close VeoBridge Gallery">Close</button>
             </div>
         </header>
 
@@ -216,17 +216,17 @@
                         <h2 id="mediaPreviewTitle">Media Preview</h2>
                         <div class="flow-media-preview-actions">
                             <div class="flow-inline-menu">
-                                <button id="btnMediaPreviewImport" type="button">Import</button>
+                                <button id="btnMediaPreviewImport" type="button" title="Import into After Effects">Import</button>
                                 <div id="mediaPreviewImportMenu" class="flow-inline-menu-popover" hidden>
-                                    <button id="btnMediaPreviewImportProject" type="button">Import to Project</button>
-                                    <button id="btnMediaPreviewImportComp" type="button">Import to Comp</button>
+                                    <button id="btnMediaPreviewImportProject" type="button" title="Import a project copy into the AE Project panel">Import to Project</button>
+                                    <button id="btnMediaPreviewImportComp" type="button" title="Import and place into the active composition">Import to Comp</button>
                                 </div>
                             </div>
                             <button id="btnMediaPreviewCapture" type="button" title="Capture current frame">Capture</button>
-                            <button id="btnMediaPreviewToFrames" type="button">To Frames</button>
-                            <button id="btnMediaPreviewReveal" type="button">Reveal</button>
-                            <button id="btnMediaPreviewDelete" type="button" class="is-danger">Delete</button>
-                            <button id="btnCloseMediaPreview" type="button">Close</button>
+                            <button id="btnMediaPreviewToFrames" type="button" title="Add this image to Captured Frames">To Frames</button>
+                            <button id="btnMediaPreviewReveal" type="button" title="Reveal file in Finder or Explorer">Reveal</button>
+                            <button id="btnMediaPreviewDelete" type="button" class="is-danger" title="Delete from VeoBridge library">Delete</button>
+                            <button id="btnCloseMediaPreview" type="button" title="Close media preview">Close</button>
                         </div>
                     </div>
                     <div class="flow-media-preview-stage">

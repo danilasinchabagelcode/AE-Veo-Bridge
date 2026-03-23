@@ -4712,6 +4712,17 @@
         var cardActions;
         var currentItem;
 
+        function appendMetaChip(container, text, modifier) {
+            var chip;
+            if (!container || !text) {
+                return;
+            }
+            chip = document.createElement("span");
+            chip.className = "flow-meta-chip" + (modifier ? (" " + modifier) : "");
+            chip.textContent = text;
+            container.appendChild(chip);
+        }
+
         if (!list) {
             return;
         }
@@ -4861,12 +4872,14 @@
                     mediaStateChip = document.createElement("span");
                     mediaStateChip.className = "state-chip state-imported";
                     mediaStateChip.textContent = "Imported";
+                    mediaStateChip.title = "This asset has already been copied into the current AE project.";
                     thumbWrap.appendChild(mediaStateChip);
                 }
 
                 mediaCaption = document.createElement("div");
                 mediaCaption.className = "flow-group-caption";
                 mediaCaption.textContent = truncateText(group.prompt || "Generated media", 48);
+                mediaCaption.title = group.prompt || "Generated media";
 
                 if (currentItem.kind === "video" || currentItem.kind === "image") {
                     mediaActions = document.createElement("div");
@@ -4878,6 +4891,12 @@
                         actionBtn.className = "video-card-action-btn";
                         if (cardActions[a].id === "delete") {
                             actionBtn.className += " is-danger";
+                        } else if (cardActions[a].id === "import") {
+                            actionBtn.className += " is-accent";
+                        } else if (cardActions[a].id === "to_frames") {
+                            actionBtn.className += " is-highlight";
+                        } else if (cardActions[a].id === "reveal") {
+                            actionBtn.className += " is-quiet";
                         }
                         actionBtn.textContent = cardActions[a].text;
                         actionBtn.title = cardActions[a].title;
@@ -4934,6 +4953,7 @@
             titleLine = document.createElement("div");
             titleLine.className = "flow-row-title";
             titleLine.textContent = group.prompt || (group.kind === "video" ? "Video request" : "Image request");
+            titleLine.title = group.prompt || (group.kind === "video" ? "Video request" : "Image request");
             metaHead.appendChild(titleLine);
 
             actionsWrap = document.createElement("div");
@@ -5007,9 +5027,15 @@
             subLine = document.createElement("div");
             subLine.className = "flow-row-sub";
             batchCount = group.sampleCount || group.items.length || 1;
-            subLine.textContent = (group.model || "-") +
-                " | " + (group.aspectRatio || "-") +
-                " | x" + String(batchCount);
+            appendMetaChip(subLine, group.model || "-", "chip-model");
+            if (group.modeLabel) {
+                appendMetaChip(subLine, group.modeLabel, "chip-mode");
+            }
+            appendMetaChip(subLine, group.aspectRatio || "-", "chip-ratio");
+            if (group.imageSize) {
+                appendMetaChip(subLine, group.imageSize, "chip-size");
+            }
+            appendMetaChip(subLine, "x" + String(batchCount), "chip-samples");
             metaWrap.appendChild(subLine);
 
             metaThumbs = document.createElement("div");

@@ -14,6 +14,11 @@
     --text-muted: #a4abbb;
     --accent: #2f76d6;
     --accent-soft: #4f91e5;
+    --accent-strong: #3e88ee;
+    --accent-surface: rgba(52, 102, 183, 0.24);
+    --warning: #c79845;
+    --warning-soft: rgba(199, 152, 69, 0.18);
+    --success: #79a56c;
     --danger: #df6372;
     --shadow: rgba(0, 0, 0, 0.4);
     --video-col-ratio: 54%;
@@ -117,6 +122,45 @@ button.is-danger:hover,
     background: linear-gradient(180deg, rgba(134, 44, 58, 0.96) 0%, rgba(104, 33, 46, 0.97) 100%);
 }
 
+button.is-accent,
+.btn.is-accent {
+    border-color: rgba(86, 138, 224, 0.8);
+    background: linear-gradient(180deg, rgba(74, 129, 219, 0.98) 0%, rgba(50, 100, 184, 0.98) 100%);
+    color: #f7faff;
+}
+
+button.is-accent:hover,
+.btn.is-accent:hover {
+    border-color: rgba(125, 173, 247, 0.92);
+    background: linear-gradient(180deg, rgba(88, 145, 234, 0.98) 0%, rgba(60, 112, 200, 0.98) 100%);
+}
+
+button.is-highlight,
+.btn.is-highlight {
+    border-color: rgba(197, 153, 74, 0.7);
+    background: linear-gradient(180deg, rgba(95, 76, 36, 0.98) 0%, rgba(71, 56, 24, 0.98) 100%);
+    color: #fff4dd;
+}
+
+button.is-highlight:hover,
+.btn.is-highlight:hover {
+    border-color: rgba(221, 181, 107, 0.88);
+    background: linear-gradient(180deg, rgba(114, 90, 43, 0.98) 0%, rgba(84, 65, 28, 0.98) 100%);
+}
+
+button.is-quiet,
+.btn.is-quiet {
+    border-color: rgba(96, 109, 135, 0.4);
+    background: linear-gradient(180deg, rgba(40, 46, 58, 0.92) 0%, rgba(32, 37, 48, 0.92) 100%);
+    color: #d8e0f0;
+}
+
+button.is-quiet:hover,
+.btn.is-quiet:hover {
+    border-color: rgba(126, 145, 178, 0.62);
+    background: linear-gradient(180deg, rgba(48, 56, 70, 0.94) 0%, rgba(38, 44, 55, 0.94) 100%);
+}
+
 .btn-primary {
     border-color: #3c7ace;
     background: linear-gradient(180deg, var(--accent-soft) 0%, var(--accent) 100%);
@@ -169,18 +213,38 @@ textarea {
 
 .status-line {
     margin: 0;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--line-soft);
-    background: #1b1f26;
-    color: #c3c9d6;
+    position: relative;
+    padding: 8px 12px 8px 28px;
+    border-radius: 10px;
+    border: 1px solid rgba(98, 114, 145, 0.26);
+    background: linear-gradient(180deg, rgba(19, 24, 33, 0.92) 0%, rgba(16, 20, 28, 0.92) 100%);
+    color: #bcc7da;
     font-size: 12px;
+    line-height: 1.35;
+}
+
+.status-line::before {
+    content: "";
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    transform: translateY(-50%);
+    background: rgba(133, 150, 179, 0.9);
+    box-shadow: 0 0 0 3px rgba(133, 150, 179, 0.12);
 }
 
 .status-line.is-error {
     border-color: rgba(255, 107, 123, 0.5);
     color: #ffe1e5;
     background: rgba(121, 28, 40, 0.34);
+}
+
+.status-line.is-error::before {
+    background: rgba(234, 97, 116, 0.98);
+    box-shadow: 0 0 0 3px rgba(234, 97, 116, 0.18);
 }
 
 .inline-status {
@@ -203,16 +267,28 @@ textarea {
 
 .launcher-card {
     display: flex;
+    padding: 10px;
+    border-radius: 14px;
+    border-color: rgba(96, 109, 137, 0.34);
+    background: linear-gradient(180deg, rgba(38, 43, 55, 0.96) 0%, rgba(31, 36, 47, 0.96) 100%);
 }
 
 .launcher-toolbar {
     align-items: center;
     flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+    padding: 2px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(27, 31, 40, 0.84) 0%, rgba(22, 26, 34, 0.84) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .launcher-action-btn {
     min-width: 82px;
-    padding: 7px 10px;
+    min-height: 34px;
+    padding: 7px 12px;
+    font-weight: 600;
 }
 
 .launcher-icon-btn {
@@ -235,6 +311,38 @@ textarea {
     justify-content: center;
     line-height: 1;
     transform: translateY(-1px);
+}
+
+#btnCreateComp {
+    border-color: rgba(93, 107, 135, 0.42);
+    background: linear-gradient(180deg, rgba(46, 52, 65, 0.96) 0%, rgba(36, 41, 52, 0.96) 100%);
+}
+
+#btnCapture {
+    border-color: rgba(86, 138, 224, 0.8);
+    background: linear-gradient(180deg, rgba(74, 129, 219, 0.98) 0%, rgba(50, 100, 184, 0.98) 100%);
+    color: #f7faff;
+}
+
+#btnCapture:hover {
+    border-color: rgba(125, 173, 247, 0.92);
+    background: linear-gradient(180deg, rgba(88, 145, 234, 0.98) 0%, rgba(60, 112, 200, 0.98) 100%);
+}
+
+#btnOpenGallery {
+    border-color: rgba(104, 123, 157, 0.5);
+    background: linear-gradient(180deg, rgba(52, 59, 75, 0.96) 0%, rgba(40, 46, 58, 0.96) 100%);
+    color: #edf2ff;
+}
+
+#btnOpenGallery:hover {
+    border-color: rgba(140, 162, 204, 0.76);
+    background: linear-gradient(180deg, rgba(60, 69, 88, 0.98) 0%, rgba(46, 53, 66, 0.98) 100%);
+}
+
+#btnSettings {
+    border-color: rgba(89, 100, 126, 0.36);
+    background: linear-gradient(180deg, rgba(40, 45, 56, 0.92) 0%, rgba(33, 38, 48, 0.92) 100%);
 }
 
 .modal-backdrop {
@@ -1428,6 +1536,28 @@ body.gallery-flow {
     gap: 8px;
 }
 
+.gallery-flow #btnDiagnostics {
+    border-color: rgba(92, 132, 201, 0.52);
+    background: linear-gradient(180deg, rgba(53, 65, 91, 0.96) 0%, rgba(42, 51, 72, 0.96) 100%);
+    color: #e6eefc;
+}
+
+.gallery-flow #btnCleanup {
+    border-color: rgba(184, 144, 73, 0.5);
+    background: linear-gradient(180deg, rgba(76, 62, 32, 0.96) 0%, rgba(57, 47, 25, 0.96) 100%);
+    color: #fff2d8;
+}
+
+.gallery-flow #btnUndoDelete {
+    border-color: rgba(102, 113, 137, 0.36);
+    background: linear-gradient(180deg, rgba(49, 54, 65, 0.92) 0%, rgba(38, 43, 51, 0.92) 100%);
+}
+
+.gallery-flow #btnClose {
+    border-color: rgba(105, 118, 146, 0.44);
+    background: linear-gradient(180deg, rgba(59, 65, 78, 0.96) 0%, rgba(46, 51, 62, 0.96) 100%);
+}
+
 .gallery-flow .tabs-row {
     background: rgba(18, 24, 35, 0.9);
     border-radius: 14px;
@@ -1505,8 +1635,8 @@ body.gallery-flow {
     padding: 10px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.11);
-    background: rgba(20, 25, 38, 0.76);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    background: linear-gradient(180deg, rgba(20, 26, 39, 0.92) 0%, rgba(15, 20, 31, 0.92) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 12px 24px rgba(0, 0, 0, 0.16);
     transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
@@ -1549,7 +1679,7 @@ body.gallery-flow {
     gap: 6px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
-    background: rgba(21, 29, 43, 0.9);
+    background: linear-gradient(180deg, rgba(24, 31, 45, 0.96) 0%, rgba(20, 26, 39, 0.96) 100%);
     padding: 7px;
     min-width: 0;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
@@ -1597,7 +1727,7 @@ body.gallery-flow {
 
 .gallery-flow .flow-group-caption {
     margin-top: 0;
-    color: #aebad2;
+    color: #c1cde2;
     font-size: 11px;
     white-space: nowrap;
     overflow: hidden;
@@ -1611,6 +1741,11 @@ body.gallery-flow {
     transform: translateX(-50%) translateY(4px);
     display: flex;
     gap: 5px;
+    padding: 4px;
+    border-radius: 11px;
+    border: 1px solid rgba(101, 117, 149, 0.24);
+    background: rgba(15, 20, 29, 0.78);
+    backdrop-filter: blur(8px);
     opacity: 0;
     pointer-events: none;
     transition: opacity 120ms ease, transform 120ms ease;
@@ -1649,7 +1784,10 @@ body.gallery-flow {
     flex-direction: column;
     gap: 7px;
     justify-content: flex-start;
-    padding-top: 2px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(18, 22, 31, 0.76) 0%, rgba(14, 18, 27, 0.76) 100%);
+    border: 1px solid rgba(88, 103, 134, 0.18);
 }
 
 .gallery-flow .flow-row-meta-head {
@@ -1665,6 +1803,9 @@ body.gallery-flow {
     gap: 8px;
     flex: 0 0 auto;
     align-self: start;
+    padding: 4px;
+    border-radius: 10px;
+    background: rgba(16, 20, 29, 0.54);
 }
 
 .gallery-flow .flow-row-title {
@@ -1673,6 +1814,7 @@ body.gallery-flow {
     white-space: normal;
     word-break: break-word;
     padding-right: 4px;
+    color: #f2f6ff;
 }
 
 @media (max-width: 620px) {
@@ -1700,9 +1842,9 @@ body.gallery-flow {
     padding: 0 10px;
     border-radius: 9px;
     font-size: 12px;
-    color: #dfe8fa;
-    background: rgba(33, 45, 67, 0.94);
-    border-color: rgba(108, 138, 188, 0.52);
+    color: #f3f7ff;
+    background: linear-gradient(180deg, rgba(63, 102, 169, 0.96) 0%, rgba(46, 81, 138, 0.96) 100%);
+    border-color: rgba(108, 146, 210, 0.7);
 }
 
 .gallery-flow .flow-reuse-btn:hover {
@@ -1720,6 +1862,9 @@ body.gallery-flow {
     font-size: 15px;
     line-height: 1;
     flex: 0 0 auto;
+    border-color: rgba(208, 82, 101, 0.76);
+    background: linear-gradient(180deg, rgba(104, 34, 47, 0.94) 0%, rgba(80, 26, 37, 0.96) 100%);
+    color: #ffe7eb;
 }
 
 .gallery-flow .flow-clear-pending-btn {
@@ -1729,6 +1874,9 @@ body.gallery-flow {
     border-radius: 9px;
     font-size: 12px;
     flex: 0 0 auto;
+    border-color: rgba(193, 153, 79, 0.56);
+    background: linear-gradient(180deg, rgba(83, 66, 31, 0.94) 0%, rgba(63, 51, 23, 0.96) 100%);
+    color: #fff0d0;
 }
 
 .gallery-flow .flow-media-row {
@@ -1863,7 +2011,9 @@ body.gallery-flow {
 .gallery-flow .state-chip.state-imported {
     left: 8px;
     right: auto;
-    background: rgba(181, 134, 46, 0.92);
+    border-color: rgba(189, 161, 86, 0.46);
+    background: linear-gradient(180deg, rgba(111, 103, 44, 0.94) 0%, rgba(92, 82, 35, 0.94) 100%);
+    color: #fbf7dd;
 }
 
 .gallery-flow .state-chip.state-error,
@@ -1897,9 +2047,44 @@ body.gallery-flow {
 .gallery-flow .flow-row-date {
     font-size: 12px;
     color: #9ca8bf;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.gallery-flow .flow-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(110, 126, 157, 0.28);
+    background: rgba(26, 32, 46, 0.86);
+    color: #dce4f5;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    margin: 0 6px 6px 0;
+}
+
+.gallery-flow .flow-meta-chip.chip-model {
+    background: rgba(34, 44, 63, 0.94);
+    border-color: rgba(97, 121, 165, 0.34);
+}
+
+.gallery-flow .flow-meta-chip.chip-mode {
+    background: rgba(48, 41, 69, 0.92);
+    border-color: rgba(126, 108, 175, 0.38);
+}
+
+.gallery-flow .flow-meta-chip.chip-ratio {
+    background: rgba(35, 47, 59, 0.92);
+    border-color: rgba(102, 135, 166, 0.34);
+}
+
+.gallery-flow .flow-meta-chip.chip-size,
+.gallery-flow .flow-meta-chip.chip-samples {
+    background: rgba(42, 45, 54, 0.92);
 }
 
 .gallery-flow .flow-row-error {
@@ -1946,6 +2131,22 @@ body.gallery-flow {
     border-color: rgba(143, 181, 245, 0.55);
 }
 
+.gallery-flow .video-card-action-btn.is-accent {
+    border-color: rgba(92, 140, 218, 0.72);
+    background: linear-gradient(180deg, rgba(69, 113, 189, 0.96) 0%, rgba(52, 89, 150, 0.96) 100%);
+}
+
+.gallery-flow .video-card-action-btn.is-highlight {
+    border-color: rgba(193, 153, 79, 0.62);
+    background: linear-gradient(180deg, rgba(89, 71, 34, 0.95) 0%, rgba(68, 54, 25, 0.96) 100%);
+    color: #fff0d1;
+}
+
+.gallery-flow .video-card-action-btn.is-quiet {
+    border-color: rgba(97, 112, 139, 0.34);
+    background: linear-gradient(180deg, rgba(42, 48, 59, 0.92) 0%, rgba(34, 39, 49, 0.92) 100%);
+}
+
 .gallery-flow .video-card-action-btn.is-danger,
 .gallery-flow .shot-card-action-btn.is-danger {
     border-color: rgba(208, 82, 101, 0.76);
@@ -1967,8 +2168,8 @@ body.gallery-flow {
     width: min(760px, calc(100% - 24px));
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.14);
-    background: linear-gradient(180deg, rgba(20, 24, 33, 0.97) 0%, rgba(12, 15, 22, 0.97) 100%);
-    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.48);
+    background: linear-gradient(180deg, rgba(19, 24, 35, 0.98) 0%, rgba(12, 15, 22, 0.98) 100%);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.03);
     padding: 10px;
     display: flex;
     flex-direction: column;
@@ -1984,9 +2185,10 @@ body.gallery-flow {
 }
 
 .gallery-flow .flow-label {
-    color: #97a5be;
+    color: #aebbd1;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 0.01em;
 }
 
 .gallery-flow #promptInput,
@@ -1994,8 +2196,9 @@ body.gallery-flow {
     min-height: 74px;
     border-radius: 14px;
     border: 1px solid rgba(99, 128, 179, 0.42);
-    background: rgba(11, 16, 27, 0.92);
+    background: linear-gradient(180deg, rgba(10, 15, 25, 0.96) 0%, rgba(9, 13, 21, 0.96) 100%);
     color: #e9eefb;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .gallery-flow .flow-composer-bottom {
@@ -2010,7 +2213,7 @@ body.gallery-flow {
     min-width: 236px;
     border-radius: 19px;
     border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(35, 44, 57, 0.95);
+    background: linear-gradient(180deg, rgba(34, 42, 54, 0.96) 0%, rgba(28, 35, 47, 0.96) 100%);
     color: #dae4f6;
     font-weight: 700;
     letter-spacing: 0.1px;
@@ -2048,6 +2251,7 @@ body.gallery-flow {
 
 .gallery-flow .flow-go-btn:hover {
     transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
 }
 
 .gallery-flow .flow-go-icon {
@@ -2431,6 +2635,9 @@ body.gallery-flow {
     gap: 6px;
     flex-wrap: wrap;
     justify-content: flex-end;
+    padding: 4px;
+    border-radius: 12px;
+    background: rgba(17, 21, 30, 0.56);
 }
 
 .gallery-flow .flow-inline-menu {
@@ -2449,7 +2656,7 @@ body.gallery-flow {
     gap: 6px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(17, 22, 31, 0.98);
+    background: linear-gradient(180deg, rgba(18, 22, 31, 0.98) 0%, rgba(13, 17, 24, 0.98) 100%);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
     z-index: 5;
 }
@@ -2457,6 +2664,28 @@ body.gallery-flow {
 .gallery-flow .flow-inline-menu-popover button {
     width: 100%;
     justify-content: flex-start;
+}
+
+.gallery-flow #btnMediaPreviewImport,
+.gallery-flow #btnMediaPreviewImportProject,
+.gallery-flow #btnMediaPreviewImportComp {
+    border-color: rgba(92, 140, 218, 0.72);
+    background: linear-gradient(180deg, rgba(69, 113, 189, 0.96) 0%, rgba(52, 89, 150, 0.96) 100%);
+    color: #f6faff;
+}
+
+.gallery-flow #btnMediaPreviewCapture,
+.gallery-flow #btnMediaPreviewToFrames {
+    border-color: rgba(193, 153, 79, 0.62);
+    background: linear-gradient(180deg, rgba(89, 71, 34, 0.95) 0%, rgba(68, 54, 25, 0.96) 100%);
+    color: #fff0d1;
+}
+
+.gallery-flow #btnMediaPreviewReveal,
+.gallery-flow #btnCloseMediaPreview {
+    border-color: rgba(97, 112, 139, 0.34);
+    background: linear-gradient(180deg, rgba(42, 48, 59, 0.92) 0%, rgba(34, 39, 49, 0.92) 100%);
+    color: #dce6f7;
 }
 
 .gallery-flow .flow-media-preview-stage {
