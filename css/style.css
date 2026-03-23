@@ -12,14 +12,15 @@
     --line-soft: #3e434d;
     --text: #e2e5eb;
     --text-muted: #a4abbb;
-    --accent: #2f76d6;
-    --accent-soft: #4f91e5;
-    --accent-strong: #3e88ee;
-    --accent-surface: rgba(52, 102, 183, 0.24);
-    --warning: #c79845;
-    --warning-soft: rgba(199, 152, 69, 0.18);
+    --accent: #446bb2;
+    --accent-soft: #537cc6;
+    --accent-strong: #6d92d6;
+    --accent-surface: rgba(68, 107, 178, 0.2);
+    --warning: #8a7334;
+    --warning-soft: rgba(138, 115, 52, 0.16);
     --success: #79a56c;
     --danger: #df6372;
+    --danger-utility: #8a4634;
     --shadow: rgba(0, 0, 0, 0.4);
     --video-col-ratio: 54%;
     --video-left-top-ratio: 42%;
@@ -124,28 +125,28 @@ button.is-danger:hover,
 
 button.is-accent,
 .btn.is-accent {
-    border-color: rgba(86, 138, 224, 0.8);
-    background: linear-gradient(180deg, rgba(74, 129, 219, 0.98) 0%, rgba(50, 100, 184, 0.98) 100%);
+    border-color: rgba(109, 146, 214, 0.68);
+    background: linear-gradient(180deg, rgba(77, 113, 179, 0.96) 0%, rgba(63, 96, 154, 0.96) 100%);
     color: #f7faff;
 }
 
 button.is-accent:hover,
 .btn.is-accent:hover {
-    border-color: rgba(125, 173, 247, 0.92);
-    background: linear-gradient(180deg, rgba(88, 145, 234, 0.98) 0%, rgba(60, 112, 200, 0.98) 100%);
+    border-color: rgba(138, 171, 229, 0.88);
+    background: linear-gradient(180deg, rgba(86, 124, 193, 0.98) 0%, rgba(70, 105, 167, 0.98) 100%);
 }
 
 button.is-highlight,
 .btn.is-highlight {
-    border-color: rgba(197, 153, 74, 0.7);
-    background: linear-gradient(180deg, rgba(95, 76, 36, 0.98) 0%, rgba(71, 56, 24, 0.98) 100%);
-    color: #fff4dd;
+    border-color: rgba(100, 129, 165, 0.56);
+    background: linear-gradient(180deg, rgba(59, 76, 98, 0.96) 0%, rgba(48, 63, 82, 0.96) 100%);
+    color: #edf3ff;
 }
 
 button.is-highlight:hover,
 .btn.is-highlight:hover {
-    border-color: rgba(221, 181, 107, 0.88);
-    background: linear-gradient(180deg, rgba(114, 90, 43, 0.98) 0%, rgba(84, 65, 28, 0.98) 100%);
+    border-color: rgba(123, 153, 190, 0.76);
+    background: linear-gradient(180deg, rgba(67, 86, 110, 0.98) 0%, rgba(55, 72, 92, 0.98) 100%);
 }
 
 button.is-quiet,
@@ -162,15 +163,15 @@ button.is-quiet:hover,
 }
 
 .btn-primary {
-    border-color: #3c7ace;
+    border-color: rgba(109, 146, 214, 0.72);
     background: linear-gradient(180deg, var(--accent-soft) 0%, var(--accent) 100%);
     color: #f5f8ff;
     font-weight: 600;
 }
 
 .btn-primary:hover {
-    border-color: #5c97e5;
-    background: linear-gradient(180deg, #5b9de9 0%, #3b7fd8 100%);
+    border-color: rgba(139, 171, 228, 0.88);
+    background: linear-gradient(180deg, #5f87cf 0%, #4a72ba 100%);
 }
 
 input,
@@ -319,14 +320,14 @@ textarea {
 }
 
 #btnCapture {
-    border-color: rgba(101, 136, 194, 0.72);
-    background: linear-gradient(180deg, rgba(70, 100, 151, 0.98) 0%, rgba(58, 84, 129, 0.98) 100%);
+    border-color: rgba(109, 146, 214, 0.7);
+    background: linear-gradient(180deg, rgba(81, 118, 187, 0.97) 0%, rgba(66, 100, 160, 0.97) 100%);
     color: #f7faff;
 }
 
 #btnCapture:hover {
-    border-color: rgba(126, 160, 219, 0.88);
-    background: linear-gradient(180deg, rgba(80, 112, 167, 0.98) 0%, rgba(64, 94, 145, 0.98) 100%);
+    border-color: rgba(141, 173, 228, 0.88);
+    background: linear-gradient(180deg, rgba(92, 130, 200, 0.98) 0%, rgba(74, 110, 174, 0.98) 100%);
 }
 
 #btnOpenGallery {
@@ -1537,15 +1538,15 @@ body.gallery-flow {
 }
 
 .gallery-flow #btnDiagnostics {
-    border-color: rgba(98, 131, 187, 0.54);
-    background: linear-gradient(180deg, rgba(56, 69, 95, 0.96) 0%, rgba(46, 56, 77, 0.96) 100%);
+    border-color: rgba(109, 146, 214, 0.52);
+    background: linear-gradient(180deg, rgba(54, 68, 93, 0.95) 0%, rgba(44, 56, 77, 0.95) 100%);
     color: #e6eefc;
 }
 
 .gallery-flow #btnCleanup {
-    border-color: rgba(174, 92, 74, 0.52);
-    background: linear-gradient(180deg, rgba(98, 50, 42, 0.96) 0%, rgba(76, 37, 31, 0.96) 100%);
-    color: #ffe7de;
+    border-color: rgba(180, 92, 78, 0.56);
+    background: linear-gradient(180deg, rgba(112, 56, 45, 0.96) 0%, rgba(88, 43, 35, 0.96) 100%);
+    color: #ffe7df;
 }
 
 .gallery-flow #btnUndoDelete {
@@ -2011,9 +2012,9 @@ body.gallery-flow {
 .gallery-flow .state-chip.state-imported {
     left: 8px;
     right: auto;
-    border-color: rgba(137, 144, 88, 0.42);
-    background: linear-gradient(180deg, rgba(85, 93, 47, 0.94) 0%, rgba(67, 72, 37, 0.94) 100%);
-    color: #f5f3dc;
+    border-color: rgba(128, 126, 76, 0.38);
+    background: linear-gradient(180deg, rgba(95, 88, 44, 0.92) 0%, rgba(73, 67, 34, 0.92) 100%);
+    color: #f1ecd1;
 }
 
 .gallery-flow .state-chip.state-error,
@@ -2132,14 +2133,14 @@ body.gallery-flow {
 }
 
 .gallery-flow .video-card-action-btn.is-accent {
-    border-color: rgba(102, 138, 196, 0.68);
-    background: linear-gradient(180deg, rgba(73, 105, 159, 0.96) 0%, rgba(58, 86, 132, 0.96) 100%);
+    border-color: rgba(109, 146, 214, 0.66);
+    background: linear-gradient(180deg, rgba(78, 115, 183, 0.96) 0%, rgba(63, 97, 156, 0.96) 100%);
 }
 
 .gallery-flow .video-card-action-btn.is-highlight {
-    border-color: rgba(97, 122, 153, 0.46);
-    background: linear-gradient(180deg, rgba(54, 68, 88, 0.95) 0%, rgba(42, 53, 70, 0.96) 100%);
-    color: #e7eefb;
+    border-color: rgba(100, 129, 165, 0.5);
+    background: linear-gradient(180deg, rgba(58, 76, 98, 0.95) 0%, rgba(46, 62, 80, 0.96) 100%);
+    color: #ecf3ff;
 }
 
 .gallery-flow .video-card-action-btn.is-quiet {
@@ -2179,14 +2180,16 @@ body.gallery-flow {
     bottom: 12px;
     transform: translateX(-50%);
     width: min(760px, calc(100% - 24px));
-    border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: linear-gradient(180deg, rgba(19, 24, 35, 0.98) 0%, rgba(12, 15, 22, 0.98) 100%);
-    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    padding: 10px;
+    border-radius: 26px;
+    border: 1px solid rgba(104, 121, 155, 0.2);
+    background:
+        radial-gradient(circle at 14% 0%, rgba(84, 98, 126, 0.12) 0%, rgba(84, 98, 126, 0) 34%),
+        linear-gradient(180deg, rgba(20, 25, 36, 0.985) 0%, rgba(11, 14, 21, 0.985) 100%);
+    box-shadow: 0 24px 44px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     z-index: 15;
 }
 
@@ -2202,16 +2205,18 @@ body.gallery-flow {
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.01em;
+    margin-top: 2px;
 }
 
 .gallery-flow #promptInput,
 .gallery-flow #imagePromptInput {
-    min-height: 74px;
-    border-radius: 14px;
-    border: 1px solid rgba(99, 128, 179, 0.42);
-    background: linear-gradient(180deg, rgba(10, 15, 25, 0.96) 0%, rgba(9, 13, 21, 0.96) 100%);
+    min-height: 82px;
+    border-radius: 16px;
+    border: 1px solid rgba(93, 116, 153, 0.34);
+    background: linear-gradient(180deg, rgba(10, 15, 24, 0.98) 0%, rgba(8, 12, 19, 0.98) 100%);
     color: #e9eefb;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02), inset 0 0 0 1px rgba(255, 255, 255, 0.01);
+    padding: 14px 16px;
 }
 
 .gallery-flow .flow-composer-bottom {
@@ -2222,26 +2227,27 @@ body.gallery-flow {
 }
 
 .gallery-flow .flow-summary-btn {
-    height: 38px;
-    min-width: 236px;
-    border-radius: 19px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: linear-gradient(180deg, rgba(34, 42, 54, 0.96) 0%, rgba(28, 35, 47, 0.96) 100%);
-    color: #dae4f6;
+    height: 40px;
+    min-width: 252px;
+    padding: 0 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(110, 127, 158, 0.26);
+    background: linear-gradient(180deg, rgba(33, 41, 54, 0.98) 0%, rgba(25, 31, 43, 0.98) 100%);
+    color: #dce5f6;
     font-weight: 700;
     letter-spacing: 0.1px;
     transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease, color 120ms ease;
 }
 
 .gallery-flow .flow-summary-btn[data-gen-type="video"] {
-    border-color: rgba(106, 151, 232, 0.42);
-    background: linear-gradient(180deg, rgba(40, 60, 95, 0.92) 0%, rgba(29, 44, 72, 0.92) 100%);
+    border-color: rgba(100, 135, 191, 0.38);
+    background: linear-gradient(180deg, rgba(46, 66, 101, 0.94) 0%, rgba(34, 49, 75, 0.94) 100%);
     color: #e8f0ff;
 }
 
 .gallery-flow .flow-summary-btn[data-gen-type="image"] {
-    border-color: rgba(171, 143, 226, 0.42);
-    background: linear-gradient(180deg, rgba(63, 47, 90, 0.92) 0%, rgba(47, 35, 67, 0.92) 100%);
+    border-color: rgba(146, 122, 188, 0.36);
+    background: linear-gradient(180deg, rgba(70, 53, 96, 0.94) 0%, rgba(53, 40, 73, 0.94) 100%);
     color: #f3eaff;
 }
 
@@ -2282,11 +2288,13 @@ body.gallery-flow {
     right: 12px;
     bottom: 96px;
     width: min(540px, calc(100% - 24px));
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(17, 22, 32, 0.98);
-    padding: 10px;
-    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.45);
+    border-radius: 22px;
+    border: 1px solid rgba(111, 127, 157, 0.18);
+    background:
+        radial-gradient(circle at 10% 0%, rgba(80, 95, 121, 0.12) 0%, rgba(80, 95, 121, 0) 34%),
+        linear-gradient(180deg, rgba(18, 23, 33, 0.985) 0%, rgba(13, 17, 25, 0.985) 100%);
+    padding: 12px;
+    box-shadow: 0 20px 36px rgba(0, 0, 0, 0.42);
     z-index: 30;
     display: none;
 }
@@ -2303,10 +2311,10 @@ body.gallery-flow {
     display: grid;
     gap: 8px;
     margin-bottom: 10px;
-    padding: 4px;
-    border-radius: 14px;
-    background: rgba(15, 20, 30, 0.78);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 5px;
+    border-radius: 16px;
+    background: rgba(14, 18, 27, 0.84);
+    border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .gallery-flow .flow-options-grid.two {
@@ -2324,12 +2332,14 @@ body.gallery-flow {
 .gallery-flow .flow-opt {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
 }
 
 .gallery-flow .flow-opt span {
     font-size: 11px;
-    color: #93a4c5;
+    color: #9baccc;
+    font-weight: 600;
+    letter-spacing: 0.01em;
 }
 
 .gallery-flow .flow-opt select,
@@ -2350,6 +2360,7 @@ body.gallery-flow {
     gap: 7px;
     position: relative;
     font-weight: 600;
+    min-height: 38px;
 }
 
 .gallery-flow .flow-options-popover .mode-tab-btn:hover {
@@ -2361,7 +2372,7 @@ body.gallery-flow {
 .gallery-flow .flow-options-popover .mode-tab-btn.is-active {
     border-color: #79a4eb;
     color: #f5f8ff;
-    background: linear-gradient(180deg, rgba(58, 95, 160, 0.96) 0%, rgba(43, 72, 124, 0.96) 100%);
+    background: linear-gradient(180deg, rgba(70, 105, 165, 0.96) 0%, rgba(52, 79, 126, 0.96) 100%);
     box-shadow: 0 0 0 1px rgba(121, 164, 235, 0.34), inset 0 0 0 1px rgba(180, 209, 255, 0.15);
 }
 
@@ -2380,6 +2391,17 @@ body.gallery-flow {
 
 .gallery-flow .flow-options-popover .mode-tab-btn.is-active {
     padding-left: 22px;
+}
+
+.gallery-flow .mode-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 13px;
+    line-height: 1;
+    transform: translateY(-1px);
 }
 
 .gallery-flow .flow-opt select:focus,
@@ -2471,31 +2493,34 @@ body.gallery-flow {
 }
 
 .gallery-flow .flow-opt-model {
-    color: #a8b4c9;
-    font-size: 12px;
+    color: #8999b8;
+    font-size: 11px;
+    margin-top: -2px;
+    padding-left: 4px;
 }
 
 .gallery-flow .flow-start-end-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 6px;
+    gap: 8px;
 }
 
 .gallery-flow .frame-card {
     position: relative;
     min-height: 82px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(28, 35, 49, 0.8);
+    border-radius: 16px;
+    border: 1px solid rgba(108, 123, 154, 0.18);
+    background: linear-gradient(180deg, rgba(28, 35, 49, 0.88) 0%, rgba(22, 28, 40, 0.88) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .gallery-flow .frame-swap-btn {
-    min-width: 72px;
+    min-width: 64px;
     min-height: 82px;
-    border-radius: 14px;
-    border: 1px solid rgba(93, 125, 182, 0.45);
-    background: rgba(22, 31, 47, 0.88);
-    color: #9fb7e1;
+    border-radius: 16px;
+    border: 1px solid rgba(93, 119, 162, 0.32);
+    background: linear-gradient(180deg, rgba(24, 31, 43, 0.9) 0%, rgba(19, 24, 33, 0.9) 100%);
+    color: #93a7c8;
 }
 
 .gallery-flow .frame-swap-btn:hover {
@@ -2529,10 +2554,11 @@ body.gallery-flow {
 }
 
 .gallery-flow .flow-inline-block {
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(22, 30, 44, 0.76);
-    padding: 8px;
+    border-radius: 18px;
+    border: 1px solid rgba(103, 120, 151, 0.16);
+    background: linear-gradient(180deg, rgba(22, 29, 42, 0.8) 0%, rgba(18, 24, 35, 0.8) 100%);
+    padding: 10px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .gallery-flow .flow-inline-actions {
@@ -2569,8 +2595,8 @@ body.gallery-flow {
 .gallery-flow .flow-ref-strip {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    min-height: 90px;
+    gap: 8px;
+    min-height: 96px;
     align-items: start;
     align-content: flex-start;
 }
@@ -2682,16 +2708,16 @@ body.gallery-flow {
 .gallery-flow #btnMediaPreviewImport,
 .gallery-flow #btnMediaPreviewImportProject,
 .gallery-flow #btnMediaPreviewImportComp {
-    border-color: rgba(102, 138, 196, 0.68);
-    background: linear-gradient(180deg, rgba(73, 105, 159, 0.96) 0%, rgba(58, 86, 132, 0.96) 100%);
+    border-color: rgba(109, 146, 214, 0.66);
+    background: linear-gradient(180deg, rgba(78, 115, 183, 0.96) 0%, rgba(63, 97, 156, 0.96) 100%);
     color: #f6faff;
 }
 
 .gallery-flow #btnMediaPreviewCapture,
 .gallery-flow #btnMediaPreviewToFrames {
-    border-color: rgba(97, 122, 153, 0.46);
-    background: linear-gradient(180deg, rgba(54, 68, 88, 0.95) 0%, rgba(42, 53, 70, 0.96) 100%);
-    color: #e7eefb;
+    border-color: rgba(100, 129, 165, 0.5);
+    background: linear-gradient(180deg, rgba(58, 76, 98, 0.95) 0%, rgba(46, 62, 80, 0.96) 100%);
+    color: #ecf3ff;
 }
 
 .gallery-flow #btnMediaPreviewReveal,
