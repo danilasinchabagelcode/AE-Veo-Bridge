@@ -3393,8 +3393,8 @@
 
         deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
-        deleteBtn.className = "shot-card-action-btn is-danger";
-        deleteBtn.textContent = "Delete";
+        deleteBtn.className = "shot-card-action-btn is-danger is-icon-only";
+        deleteBtn.textContent = "\u00D7";
         deleteBtn.title = "Delete frame";
         deleteBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
@@ -4702,12 +4702,12 @@
         var actionsVideo = [
             { id: "import", text: "Import", title: "Import to AE" },
             { id: "reveal", text: "Reveal", title: "Reveal in file manager" },
-            { id: "delete", text: "Delete", title: "Delete media" }
+            { id: "delete", text: "\u00D7", title: "Delete media" }
         ];
         var actionsImage = [
             { id: "to_frames", text: "To Frames", title: "Add image to Captured Frames" },
             { id: "reveal", text: "Reveal", title: "Reveal in file manager" },
-            { id: "delete", text: "Delete", title: "Delete media" }
+            { id: "delete", text: "\u00D7", title: "Delete media" }
         ];
         var cardActions;
         var currentItem;
@@ -4890,7 +4890,7 @@
                         actionBtn.type = "button";
                         actionBtn.className = "video-card-action-btn";
                         if (cardActions[a].id === "delete") {
-                            actionBtn.className += " is-danger";
+                            actionBtn.className += " is-danger is-icon-only";
                         } else if (cardActions[a].id === "import") {
                             actionBtn.className += " is-accent";
                         } else if (cardActions[a].id === "to_frames") {
@@ -5514,8 +5514,8 @@
 
             actionBtn = document.createElement("button");
             actionBtn.type = "button";
-            actionBtn.className = "video-card-action-btn is-danger";
-            actionBtn.textContent = "Delete";
+            actionBtn.className = "video-card-action-btn is-danger is-icon-only";
+            actionBtn.textContent = "\u00D7";
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;

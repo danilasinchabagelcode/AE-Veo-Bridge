@@ -319,14 +319,14 @@ textarea {
 }
 
 #btnCapture {
-    border-color: rgba(86, 138, 224, 0.8);
-    background: linear-gradient(180deg, rgba(74, 129, 219, 0.98) 0%, rgba(50, 100, 184, 0.98) 100%);
+    border-color: rgba(101, 136, 194, 0.72);
+    background: linear-gradient(180deg, rgba(70, 100, 151, 0.98) 0%, rgba(58, 84, 129, 0.98) 100%);
     color: #f7faff;
 }
 
 #btnCapture:hover {
-    border-color: rgba(125, 173, 247, 0.92);
-    background: linear-gradient(180deg, rgba(88, 145, 234, 0.98) 0%, rgba(60, 112, 200, 0.98) 100%);
+    border-color: rgba(126, 160, 219, 0.88);
+    background: linear-gradient(180deg, rgba(80, 112, 167, 0.98) 0%, rgba(64, 94, 145, 0.98) 100%);
 }
 
 #btnOpenGallery {
@@ -1537,15 +1537,15 @@ body.gallery-flow {
 }
 
 .gallery-flow #btnDiagnostics {
-    border-color: rgba(92, 132, 201, 0.52);
-    background: linear-gradient(180deg, rgba(53, 65, 91, 0.96) 0%, rgba(42, 51, 72, 0.96) 100%);
+    border-color: rgba(98, 131, 187, 0.54);
+    background: linear-gradient(180deg, rgba(56, 69, 95, 0.96) 0%, rgba(46, 56, 77, 0.96) 100%);
     color: #e6eefc;
 }
 
 .gallery-flow #btnCleanup {
-    border-color: rgba(184, 144, 73, 0.5);
-    background: linear-gradient(180deg, rgba(76, 62, 32, 0.96) 0%, rgba(57, 47, 25, 0.96) 100%);
-    color: #fff2d8;
+    border-color: rgba(174, 92, 74, 0.52);
+    background: linear-gradient(180deg, rgba(98, 50, 42, 0.96) 0%, rgba(76, 37, 31, 0.96) 100%);
+    color: #ffe7de;
 }
 
 .gallery-flow #btnUndoDelete {
@@ -1843,13 +1843,13 @@ body.gallery-flow {
     border-radius: 9px;
     font-size: 12px;
     color: #f3f7ff;
-    background: linear-gradient(180deg, rgba(63, 102, 169, 0.96) 0%, rgba(46, 81, 138, 0.96) 100%);
-    border-color: rgba(108, 146, 210, 0.7);
+    background: linear-gradient(180deg, rgba(72, 103, 154, 0.96) 0%, rgba(56, 82, 125, 0.96) 100%);
+    border-color: rgba(112, 146, 201, 0.64);
 }
 
 .gallery-flow .flow-reuse-btn:hover {
-    border-color: rgba(148, 185, 247, 0.8);
-    background: rgba(43, 58, 84, 0.96);
+    border-color: rgba(144, 176, 228, 0.78);
+    background: linear-gradient(180deg, rgba(79, 112, 166, 0.98) 0%, rgba(61, 89, 138, 0.98) 100%);
 }
 
 .gallery-flow .flow-batch-delete-btn {
@@ -2011,9 +2011,9 @@ body.gallery-flow {
 .gallery-flow .state-chip.state-imported {
     left: 8px;
     right: auto;
-    border-color: rgba(189, 161, 86, 0.46);
-    background: linear-gradient(180deg, rgba(111, 103, 44, 0.94) 0%, rgba(92, 82, 35, 0.94) 100%);
-    color: #fbf7dd;
+    border-color: rgba(137, 144, 88, 0.42);
+    background: linear-gradient(180deg, rgba(85, 93, 47, 0.94) 0%, rgba(67, 72, 37, 0.94) 100%);
+    color: #f5f3dc;
 }
 
 .gallery-flow .state-chip.state-error,
@@ -2132,14 +2132,14 @@ body.gallery-flow {
 }
 
 .gallery-flow .video-card-action-btn.is-accent {
-    border-color: rgba(92, 140, 218, 0.72);
-    background: linear-gradient(180deg, rgba(69, 113, 189, 0.96) 0%, rgba(52, 89, 150, 0.96) 100%);
+    border-color: rgba(102, 138, 196, 0.68);
+    background: linear-gradient(180deg, rgba(73, 105, 159, 0.96) 0%, rgba(58, 86, 132, 0.96) 100%);
 }
 
 .gallery-flow .video-card-action-btn.is-highlight {
-    border-color: rgba(193, 153, 79, 0.62);
-    background: linear-gradient(180deg, rgba(89, 71, 34, 0.95) 0%, rgba(68, 54, 25, 0.96) 100%);
-    color: #fff0d1;
+    border-color: rgba(97, 122, 153, 0.46);
+    background: linear-gradient(180deg, rgba(54, 68, 88, 0.95) 0%, rgba(42, 53, 70, 0.96) 100%);
+    color: #e7eefb;
 }
 
 .gallery-flow .video-card-action-btn.is-quiet {
@@ -2152,6 +2152,19 @@ body.gallery-flow {
     border-color: rgba(208, 82, 101, 0.76);
     background: rgba(104, 34, 47, 0.94);
     color: #ffe7eb;
+}
+
+.gallery-flow .video-card-action-btn.is-icon-only,
+.gallery-flow .shot-card-action-btn.is-icon-only {
+    width: 24px;
+    min-width: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    text-align: center;
 }
 
 .gallery-flow .video-card-action-btn.is-danger:hover,
@@ -2669,16 +2682,16 @@ body.gallery-flow {
 .gallery-flow #btnMediaPreviewImport,
 .gallery-flow #btnMediaPreviewImportProject,
 .gallery-flow #btnMediaPreviewImportComp {
-    border-color: rgba(92, 140, 218, 0.72);
-    background: linear-gradient(180deg, rgba(69, 113, 189, 0.96) 0%, rgba(52, 89, 150, 0.96) 100%);
+    border-color: rgba(102, 138, 196, 0.68);
+    background: linear-gradient(180deg, rgba(73, 105, 159, 0.96) 0%, rgba(58, 86, 132, 0.96) 100%);
     color: #f6faff;
 }
 
 .gallery-flow #btnMediaPreviewCapture,
 .gallery-flow #btnMediaPreviewToFrames {
-    border-color: rgba(193, 153, 79, 0.62);
-    background: linear-gradient(180deg, rgba(89, 71, 34, 0.95) 0%, rgba(68, 54, 25, 0.96) 100%);
-    color: #fff0d1;
+    border-color: rgba(97, 122, 153, 0.46);
+    background: linear-gradient(180deg, rgba(54, 68, 88, 0.95) 0%, rgba(42, 53, 70, 0.96) 100%);
+    color: #e7eefb;
 }
 
 .gallery-flow #btnMediaPreviewReveal,
