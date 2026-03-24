@@ -36,22 +36,20 @@
         <div class="modal-card create-comp-card" role="dialog" aria-modal="true" aria-labelledby="createCompTitle">
             <h2 id="createCompTitle" class="modal-title">Create Composition</h2>
             <div class="create-comp-inline-row">
-                <label for="ratioSelect" class="field-label create-comp-inline-label">Ratio</label>
-                <select id="ratioSelect" class="create-comp-inline-control">
+                <select id="ratioSelect" class="create-comp-inline-control" aria-label="Ratio" title="Ratio">
                     <option value="16x9" selected>16x9</option>
                     <option value="1x1">1x1</option>
                     <option value="9x16">9x16</option>
                 </select>
 
-                <label for="bgColorSelect" class="field-label create-comp-inline-label">BG Color</label>
-                <select id="bgColorSelect" class="create-comp-inline-control">
+                <select id="bgColorSelect" class="create-comp-inline-control" aria-label="Background color" title="Background color">
                     <option value="Green" selected>Green</option>
                     <option value="Blue">Blue</option>
                     <option value="Magenta">Magenta</option>
                     <option value="Custom">Custom</option>
                 </select>
 
-                <button id="btnColorSwatch" type="button" class="create-comp-color-swatch" aria-label="Background color"></button>
+                <button id="btnColorSwatch" type="button" class="create-comp-color-swatch" aria-label="Background color" title="Background color"></button>
                 <button id="btnSubmitCreateComp" type="button" class="btn-primary">Create</button>
             </div>
             <div id="createCompColorPopover" class="create-comp-color-popover" hidden>
