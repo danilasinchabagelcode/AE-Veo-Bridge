@@ -7,6 +7,62 @@
     <link rel="stylesheet" href="./css/style.css">
 </head>
 <body class="gallery-flow">
+    <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true" focusable="false">
+        <symbol id="vb-icon-plus" viewBox="0 0 24 24">
+            <path d="M12 5v14"></path>
+            <path d="M5 12h14"></path>
+        </symbol>
+        <symbol id="vb-icon-close" viewBox="0 0 24 24">
+            <path d="M6 6l12 12"></path>
+            <path d="M18 6L6 18"></path>
+        </symbol>
+        <symbol id="vb-icon-refresh" viewBox="0 0 24 24">
+            <path d="M20 11a8 8 0 0 0-13.7-4.9"></path>
+            <path d="M4 4v5h5"></path>
+            <path d="M4 13a8 8 0 0 0 13.7 4.9"></path>
+            <path d="M20 20v-5h-5"></path>
+        </symbol>
+        <symbol id="vb-icon-folder" viewBox="0 0 24 24">
+            <path d="M3 7.5h6l2 2H21v8.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5Z"></path>
+        </symbol>
+        <symbol id="vb-icon-import" viewBox="0 0 24 24">
+            <path d="M12 4v10"></path>
+            <path d="M8 10l4 4l4-4"></path>
+            <path d="M4 18h16"></path>
+        </symbol>
+        <symbol id="vb-icon-image" viewBox="0 0 24 24">
+            <rect x="4" y="5" width="16" height="14" rx="2"></rect>
+            <path d="M8 14l2.5-2.5L16 17"></path>
+            <circle cx="9" cy="9" r="1.2"></circle>
+        </symbol>
+        <symbol id="vb-icon-video" viewBox="0 0 24 24">
+            <rect x="3" y="6" width="13" height="12" rx="2"></rect>
+            <path d="M16 10l5-3v10l-5-3Z"></path>
+        </symbol>
+        <symbol id="vb-icon-frames" viewBox="0 0 24 24">
+            <rect x="4" y="4" width="7" height="7" rx="1.5"></rect>
+            <rect x="13" y="4" width="7" height="7" rx="1.5"></rect>
+            <rect x="4" y="13" width="7" height="7" rx="1.5"></rect>
+            <rect x="13" y="13" width="7" height="7" rx="1.5"></rect>
+        </symbol>
+        <symbol id="vb-icon-ingredients" viewBox="0 0 24 24">
+            <path d="M7 4v16"></path>
+            <path d="M17 4v16"></path>
+            <path d="M7 8h10"></path>
+            <path d="M7 16h10"></path>
+            <path d="M12 4v16"></path>
+        </symbol>
+        <symbol id="vb-icon-swap" viewBox="0 0 24 24">
+            <path d="M7 8h10"></path>
+            <path d="M13 4l4 4l-4 4"></path>
+            <path d="M17 16H7"></path>
+            <path d="M11 20l-4-4l4-4"></path>
+        </symbol>
+        <symbol id="vb-icon-arrow-right" viewBox="0 0 24 24">
+            <path d="M5 12h14"></path>
+            <path d="M13 6l6 6l-6 6"></path>
+        </symbol>
+    </svg>
     <main class="container gallery-root">
         <header class="gallery-topbar">
             <div class="gallery-title-wrap">
@@ -32,7 +88,7 @@
                     <div id="videoStartEndRow" class="start-end-row flow-start-end-row">
                         <div id="videoStartCard" class="frame-card compact">
                             <button id="btnOpenVideoStartPicker" type="button" class="frame-click-cover" aria-label="Pick Start frame"></button>
-                            <button id="btnClearStart" type="button" class="frame-clear-btn" title="Clear Start" aria-label="Clear Start">×</button>
+                            <button id="btnClearStart" type="button" class="frame-clear-btn" title="Clear Start" aria-label="Clear Start"><svg class="ui-icon" aria-hidden="true"><use href="#vb-icon-close" xlink:href="#vb-icon-close"></use></svg></button>
                             <div class="frame-thumb frame-thumb-empty" id="galleryStartThumbWrap">
                                 <img id="galleryStartThumb" alt="Start frame" hidden>
                                 <span>Start</span>
@@ -43,11 +99,11 @@
                             </div>
                         </div>
                         <button id="btnSwapStartEnd" type="button" class="frame-link frame-swap-btn" title="Swap Start and End" aria-label="Swap Start and End">
-                            <span class="frame-swap-icon" aria-hidden="true">&#8646;</span>
+                            <svg class="ui-icon frame-swap-icon" aria-hidden="true"><use href="#vb-icon-swap" xlink:href="#vb-icon-swap"></use></svg>
                         </button>
                         <div id="videoEndCard" class="frame-card compact">
                             <button id="btnOpenVideoEndPicker" type="button" class="frame-click-cover" aria-label="Pick End frame"></button>
-                            <button id="btnClearEnd" type="button" class="frame-clear-btn" title="Clear End" aria-label="Clear End">×</button>
+                            <button id="btnClearEnd" type="button" class="frame-clear-btn" title="Clear End" aria-label="Clear End"><svg class="ui-icon" aria-hidden="true"><use href="#vb-icon-close" xlink:href="#vb-icon-close"></use></svg></button>
                             <div class="frame-thumb frame-thumb-empty" id="galleryEndThumbWrap">
                                 <img id="galleryEndThumb" alt="End frame" hidden>
                                 <span>End</span>
@@ -62,7 +118,7 @@
                     <section id="videoRefsBlock" class="flow-inline-block" hidden>
                         <div class="flow-inline-actions ghost-hidden" hidden>
                             <button id="btnOpenVideoRefPicker" type="button" class="flow-plus-btn ghost-hidden" aria-label="Add reference" hidden>
-                                <span class="flow-plus-icon" aria-hidden="true">+</span>
+                                <svg class="ui-icon flow-plus-icon" aria-hidden="true"><use href="#vb-icon-plus" xlink:href="#vb-icon-plus"></use></svg>
                             </button>
                             <button id="btnClearVideoRefs" type="button" class="ghost-hidden" hidden>Clear</button>
                             <button id="btnAddVideoRefSelected" type="button" class="ghost-hidden">Add Selected</button>
@@ -73,7 +129,7 @@
                     <section id="imageRefsBlock" class="flow-inline-block" hidden>
                         <div class="flow-inline-actions ghost-hidden" hidden>
                             <button id="btnOpenImageShotPicker" type="button" class="flow-plus-btn ghost-hidden" aria-label="Add reference" hidden>
-                                <span class="flow-plus-icon" aria-hidden="true">+</span>
+                                <svg class="ui-icon flow-plus-icon" aria-hidden="true"><use href="#vb-icon-plus" xlink:href="#vb-icon-plus"></use></svg>
                             </button>
                             <button id="btnClearRefs" type="button" class="ghost-hidden" hidden>Clear</button>
                             <button id="btnAddSelectedShotToRefs" type="button" class="ghost-hidden">Add Selected</button>
@@ -90,7 +146,7 @@
                     <div class="flow-composer-bottom">
                         <button id="btnVideoFlowOptions" type="button" class="flow-summary-btn">Video | Frames | x2</button>
                         <button id="btnGenerate" type="button" class="flow-go-btn" aria-label="Generate">
-                            <span class="flow-go-icon" aria-hidden="true">&#8594;</span>
+                            <svg class="ui-icon flow-go-icon" aria-hidden="true"><use href="#vb-icon-arrow-right" xlink:href="#vb-icon-arrow-right"></use></svg>
                         </button>
                     </div>
                     <p id="generationStatus" class="inline-status ghost-hidden" hidden>Idle.</p>
@@ -99,22 +155,22 @@
                     <div id="videoFlowOptions" class="flow-options-popover" hidden>
                         <div class="flow-options-grid two">
                             <button id="btnGenTypeImage" type="button" class="mode-tab-btn" data-gen-type="image">
-                                <span class="mode-icon icon-image" aria-hidden="true"></span>
+                                <svg class="ui-icon mode-icon-svg" aria-hidden="true"><use href="#vb-icon-image" xlink:href="#vb-icon-image"></use></svg>
                                 <span>Image</span>
                             </button>
                             <button id="btnGenTypeVideo" type="button" class="mode-tab-btn is-active" data-gen-type="video">
-                                <span class="mode-icon icon-video" aria-hidden="true"></span>
+                                <svg class="ui-icon mode-icon-svg" aria-hidden="true"><use href="#vb-icon-video" xlink:href="#vb-icon-video"></use></svg>
                                 <span>Video</span>
                             </button>
                         </div>
 
                         <div id="videoModeOptionsRow" class="flow-options-grid two">
                             <button id="btnModeFrames" type="button" class="mode-tab-btn is-active" data-video-mode="frames">
-                                <span class="mode-icon icon-frames" aria-hidden="true"></span>
+                                <svg class="ui-icon mode-icon-svg" aria-hidden="true"><use href="#vb-icon-frames" xlink:href="#vb-icon-frames"></use></svg>
                                 <span>Frames</span>
                             </button>
                             <button id="btnModeReference" type="button" class="mode-tab-btn" data-video-mode="reference">
-                                <span class="mode-icon icon-ingredients" aria-hidden="true"></span>
+                                <svg class="ui-icon mode-icon-svg" aria-hidden="true"><use href="#vb-icon-ingredients" xlink:href="#vb-icon-ingredients"></use></svg>
                                 <span>Ingredients</span>
                             </button>
                         </div>

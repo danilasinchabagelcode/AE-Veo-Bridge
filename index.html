@@ -7,13 +7,31 @@
     <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
+    <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true" focusable="false">
+        <symbol id="vb-icon-plus" viewBox="0 0 24 24">
+            <path d="M12 5v14"></path>
+            <path d="M5 12h14"></path>
+        </symbol>
+        <symbol id="vb-icon-gear" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3.4"></circle>
+            <path d="M12 2.9v2.2"></path>
+            <path d="M12 18.9v2.2"></path>
+            <path d="M21.1 12h-2.2"></path>
+            <path d="M5.1 12H2.9"></path>
+            <path d="M18.4 5.6l-1.6 1.6"></path>
+            <path d="M7.2 16.8l-1.6 1.6"></path>
+            <path d="M18.4 18.4l-1.6-1.6"></path>
+            <path d="M7.2 7.2L5.6 5.6"></path>
+            <circle cx="12" cy="12" r="7.2"></circle>
+        </symbol>
+    </svg>
     <main class="container panel-root launcher-root">
         <section class="card launcher-card">
             <div class="toolbar launcher-toolbar">
-                <button id="btnCreateComp" type="button" class="launcher-icon-btn" aria-label="Create helper composition" title="Create helper composition"><span class="launcher-icon">+</span></button>
+                <button id="btnCreateComp" type="button" class="launcher-icon-btn" aria-label="Create helper composition" title="Create helper composition"><svg class="ui-icon launcher-icon" aria-hidden="true"><use href="#vb-icon-plus" xlink:href="#vb-icon-plus"></use></svg></button>
                 <button id="btnCapture" type="button" class="launcher-action-btn" title="Capture current AE frame into VeoBridge library">Capture</button>
                 <button id="btnOpenGallery" type="button" class="launcher-action-btn" title="Open VeoBridge Gallery">Gallery</button>
-                <button id="btnSettings" type="button" class="launcher-icon-btn" aria-label="Settings" title="Settings"><span class="launcher-icon">&#9881;</span></button>
+                <button id="btnSettings" type="button" class="launcher-icon-btn" aria-label="Settings" title="Settings"><svg class="ui-icon launcher-icon" aria-hidden="true"><use href="#vb-icon-gear" xlink:href="#vb-icon-gear"></use></svg></button>
             </div>
         </section>
 

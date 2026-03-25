@@ -98,6 +98,14 @@
     var renderAdapter = null;
     var actionsAdapter = null;
 
+    function getSvgIconMarkup(iconId, extraClass) {
+        var className = "ui-icon";
+        if (extraClass) {
+            className += " " + String(extraClass);
+        }
+        return '<svg class="' + className + '" aria-hidden="true"><use href="#' + iconId + '" xlink:href="#' + iconId + '"></use></svg>';
+    }
+
     function smoothProgressSyntheticDelayMs(percent) {
         var baseDelay;
         if (percent < 50) {
@@ -3377,8 +3385,8 @@
 
         revealBtn = document.createElement("button");
         revealBtn.type = "button";
-        revealBtn.className = "shot-card-action-btn";
-        revealBtn.textContent = "Reveal";
+        revealBtn.className = "shot-card-action-btn is-quiet is-icon-only";
+        revealBtn.innerHTML = getSvgIconMarkup("vb-icon-folder");
         revealBtn.title = "Reveal in file manager";
         revealBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
@@ -3394,7 +3402,7 @@
         deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "shot-card-action-btn is-danger is-icon-only";
-        deleteBtn.textContent = "\u00D7";
+        deleteBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
         deleteBtn.title = "Delete frame";
         deleteBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
@@ -4700,14 +4708,14 @@
         var groupStateLabelKey;
         var itemStateLabelKey;
         var actionsVideo = [
-            { id: "import", text: "Import", title: "Import to AE" },
-            { id: "reveal", text: "Reveal", title: "Reveal in file manager" },
-            { id: "delete", text: "\u00D7", title: "Delete media" }
+            { id: "import", icon: "vb-icon-import", title: "Import to AE", iconOnly: true },
+            { id: "reveal", icon: "vb-icon-folder", title: "Reveal in file manager", iconOnly: true },
+            { id: "delete", icon: "vb-icon-close", title: "Delete media", iconOnly: true }
         ];
         var actionsImage = [
-            { id: "to_frames", text: "To Frames", title: "Add image to Captured Frames" },
-            { id: "reveal", text: "Reveal", title: "Reveal in file manager" },
-            { id: "delete", text: "\u00D7", title: "Delete media" }
+            { id: "to_frames", icon: "vb-icon-frames", title: "Add image to Captured Frames", iconOnly: true },
+            { id: "reveal", icon: "vb-icon-folder", title: "Reveal in file manager", iconOnly: true },
+            { id: "delete", icon: "vb-icon-close", title: "Delete media", iconOnly: true }
         ];
         var cardActions;
         var currentItem;
@@ -4892,13 +4900,17 @@
                         if (cardActions[a].id === "delete") {
                             actionBtn.className += " is-danger is-icon-only";
                         } else if (cardActions[a].id === "import") {
-                            actionBtn.className += " is-accent";
+                            actionBtn.className += " is-accent is-icon-only";
                         } else if (cardActions[a].id === "to_frames") {
-                            actionBtn.className += " is-highlight";
+                            actionBtn.className += " is-highlight is-icon-only";
                         } else if (cardActions[a].id === "reveal") {
-                            actionBtn.className += " is-quiet";
+                            actionBtn.className += " is-quiet is-icon-only";
                         }
-                        actionBtn.textContent = cardActions[a].text;
+                        if (cardActions[a].icon) {
+                            actionBtn.innerHTML = getSvgIconMarkup(cardActions[a].icon);
+                        } else {
+                            actionBtn.textContent = cardActions[a].text || "";
+                        }
                         actionBtn.title = cardActions[a].title;
                         bindGroupMediaAction(actionBtn, cardActions[a].id, currentItem.kind, currentItem.id);
                         mediaActions.appendChild(actionBtn);
@@ -4962,7 +4974,7 @@
             reuseBtn = document.createElement("button");
             reuseBtn.type = "button";
             reuseBtn.className = "flow-reuse-btn";
-            reuseBtn.textContent = "\u21BB";
+            reuseBtn.innerHTML = getSvgIconMarkup("vb-icon-refresh");
             reuseBtn.title = "Reuse this batch in composer";
             reuseBtn.addEventListener("click", (function (groupCopy) {
                 return function (event) {
@@ -4980,7 +4992,7 @@
             deleteBatchBtn = document.createElement("button");
             deleteBatchBtn.type = "button";
             deleteBatchBtn.className = "flow-batch-delete-btn is-danger";
-            deleteBatchBtn.textContent = "\u00D7";
+            deleteBatchBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
             deleteBatchBtn.title = "Delete batch";
             deleteBatchBtn.setAttribute("aria-label", "Delete batch");
             deleteBatchBtn.addEventListener("click", (function (groupCopy2) {
@@ -5451,8 +5463,9 @@
 
             actionBtn = document.createElement("button");
             actionBtn.type = "button";
-            actionBtn.className = "video-card-action-btn";
-            actionBtn.textContent = "Import";
+            actionBtn.className = "video-card-action-btn is-accent is-icon-only";
+            actionBtn.innerHTML = getSvgIconMarkup("vb-icon-import");
+            actionBtn.title = "Import to AE";
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5472,8 +5485,9 @@
 
             actionBtn = document.createElement("button");
             actionBtn.type = "button";
-            actionBtn.className = "video-card-action-btn";
-            actionBtn.textContent = "To Frames";
+            actionBtn.className = "video-card-action-btn is-highlight is-icon-only";
+            actionBtn.innerHTML = getSvgIconMarkup("vb-icon-frames");
+            actionBtn.title = "Add image to Captured Frames";
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5493,8 +5507,9 @@
 
             actionBtn = document.createElement("button");
             actionBtn.type = "button";
-            actionBtn.className = "video-card-action-btn";
-            actionBtn.textContent = "Reveal";
+            actionBtn.className = "video-card-action-btn is-quiet is-icon-only";
+            actionBtn.innerHTML = getSvgIconMarkup("vb-icon-folder");
+            actionBtn.title = "Reveal in file manager";
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5515,7 +5530,8 @@
             actionBtn = document.createElement("button");
             actionBtn.type = "button";
             actionBtn.className = "video-card-action-btn is-danger is-icon-only";
-            actionBtn.textContent = "\u00D7";
+            actionBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
+            actionBtn.title = "Delete image";
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -6078,9 +6094,9 @@
             videoBtn.setAttribute("data-gen-type", activeGenerationType);
             videoBtn.setAttribute("data-video-mode", mode);
             if (activeGenerationType === GEN_TYPE_IMAGE) {
-                videoBtn.textContent = "Image \u2022 " + imageSampleText + " \u2022 " + imageAspectText;
+                videoBtn.textContent = "\ud83d\uddbc Image \u2022 " + imageSampleText + " \u2022 " + imageAspectText;
             } else {
-                videoBtn.textContent = "Video \u2022 " + videoModeLabel + " \u2022 " + videoSampleText + " \u2022 " + videoAspectText;
+                videoBtn.textContent = "\ud83c\udfa5 Video \u2022 " + videoModeLabel + " \u2022 " + videoSampleText + " \u2022 " + videoAspectText;
             }
         }
 

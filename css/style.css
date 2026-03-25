@@ -88,6 +88,18 @@ button,
     transition: border-color 120ms ease, background-color 120ms ease, transform 80ms ease;
 }
 
+.ui-icon {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: 0 0 auto;
+    vector-effect: non-scaling-stroke;
+}
+
 button:hover,
 .btn:hover {
     border-color: #676767;
@@ -306,7 +318,6 @@ textarea {
     align-items: center;
     justify-content: center;
     line-height: 1;
-    transform: translateY(-1px);
 }
 
 #btnCreateComp {
@@ -1859,7 +1870,12 @@ body.gallery-flow {
 .gallery-flow .flow-reuse-btn {
     min-height: 24px;
     height: 24px;
-    padding: 0 8px;
+    width: 24px;
+    min-width: 24px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 3px;
     font-size: 12px;
     color: #f3f7ff;
@@ -1879,8 +1895,9 @@ body.gallery-flow {
     min-width: 24px;
     padding: 0;
     border-radius: 3px;
-    font-size: 15px;
-    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 auto;
     border-color: rgba(208, 82, 101, 0.76);
     background: rgba(104, 34, 47, 0.94);
@@ -2183,8 +2200,6 @@ body.gallery-flow {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    line-height: 1;
     text-align: center;
 }
 
@@ -2298,8 +2313,6 @@ body.gallery-flow {
     justify-content: center;
     width: 100%;
     height: 100%;
-    line-height: 1;
-    transform: translateX(1px);
 }
 
 .gallery-flow .flow-options-popover {
@@ -2410,15 +2423,12 @@ body.gallery-flow {
     padding-left: 18px;
 }
 
-.gallery-flow .mode-emoji {
+.gallery-flow .mode-icon-svg {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
-    font-size: 13px;
-    line-height: 1;
-    transform: translateY(-1px);
+    width: 14px;
+    height: 14px;
 }
 
 .gallery-flow .flow-opt select:focus,
@@ -2550,11 +2560,8 @@ body.gallery-flow {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
-    font-size: 17px;
-    line-height: 1;
-    transform: translateY(-1px);
+    width: 16px;
+    height: 16px;
 }
 
 .gallery-flow .frame-click-cover {
@@ -2604,9 +2611,8 @@ body.gallery-flow {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
-    line-height: 1;
-    transform: translateY(-1px);
+    width: 14px;
+    height: 14px;
 }
 
 .gallery-flow .flow-ref-strip {
