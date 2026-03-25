@@ -97,6 +97,8 @@
     var queueAdapter = null;
     var renderAdapter = null;
     var actionsAdapter = null;
+    var hoverTooltipEl = null;
+    var hoverTooltipTarget = null;
 
     function getSvgIconMarkup(iconId, extraClass) {
         var className = "ui-icon";
@@ -128,6 +130,143 @@
 
     function getById(id) {
         return document.getElementById(id);
+    }
+
+    function getHoverTooltipElement() {
+        if (!hoverTooltipEl) {
+            hoverTooltipEl = getById("hoverTooltip");
+        }
+        return hoverTooltipEl;
+    }
+
+    function getTooltipTarget(node) {
+        var target;
+        if (!node || !node.closest) {
+            return null;
+        }
+        target = node.closest("[data-tooltip]");
+        if (!target || target.disabled) {
+            return null;
+        }
+        return target;
+    }
+
+    function positionHoverTooltip(target) {
+        var tooltip = getHoverTooltipElement();
+        var rect;
+        var tooltipRect;
+        var gap = 8;
+        var top;
+        var left;
+        var maxLeft;
+
+        if (!tooltip || !target || tooltip.hidden) {
+            return;
+        }
+
+        rect = target.getBoundingClientRect();
+        tooltipRect = tooltip.getBoundingClientRect();
+        top = rect.top - tooltipRect.height - gap;
+        if (top < 8) {
+            top = rect.bottom + gap;
+        }
+        left = rect.left + ((rect.width - tooltipRect.width) / 2);
+        maxLeft = window.innerWidth - tooltipRect.width - 8;
+        if (left < 8) {
+            left = 8;
+        }
+        if (left > maxLeft) {
+            left = maxLeft;
+        }
+        if (top + tooltipRect.height > window.innerHeight - 8) {
+            top = Math.max(8, rect.top - tooltipRect.height - gap);
+        }
+
+        tooltip.style.left = Math.round(left) + "px";
+        tooltip.style.top = Math.round(top) + "px";
+    }
+
+    function showHoverTooltip(target) {
+        var tooltip = getHoverTooltipElement();
+        var text;
+        if (!tooltip || !target) {
+            return;
+        }
+        text = trimText(target.getAttribute("data-tooltip"));
+        if (!text) {
+            hideHoverTooltip();
+            return;
+        }
+        hoverTooltipTarget = target;
+        tooltip.textContent = text;
+        tooltip.hidden = false;
+        positionHoverTooltip(target);
+    }
+
+    function hideHoverTooltip() {
+        var tooltip = getHoverTooltipElement();
+        hoverTooltipTarget = null;
+        if (!tooltip) {
+            return;
+        }
+        tooltip.hidden = true;
+        tooltip.textContent = "";
+        tooltip.style.left = "-9999px";
+        tooltip.style.top = "-9999px";
+    }
+
+    function bindHoverTooltips() {
+        document.addEventListener("mouseover", function (event) {
+            var target = getTooltipTarget(event.target);
+            if (!target) {
+                return;
+            }
+            if (hoverTooltipTarget === target) {
+                positionHoverTooltip(target);
+                return;
+            }
+            showHoverTooltip(target);
+        });
+
+        document.addEventListener("mouseout", function (event) {
+            if (!hoverTooltipTarget) {
+                return;
+            }
+            if (hoverTooltipTarget.contains && hoverTooltipTarget.contains(event.relatedTarget)) {
+                return;
+            }
+            hideHoverTooltip();
+        });
+
+        document.addEventListener("focusin", function (event) {
+            var target = getTooltipTarget(event.target);
+            if (!target) {
+                return;
+            }
+            showHoverTooltip(target);
+        });
+
+        document.addEventListener("focusout", function (event) {
+            if (!hoverTooltipTarget) {
+                return;
+            }
+            if (hoverTooltipTarget.contains && hoverTooltipTarget.contains(event.relatedTarget)) {
+                return;
+            }
+            hideHoverTooltip();
+        });
+
+        window.addEventListener("resize", function () {
+            if (hoverTooltipTarget) {
+                positionHoverTooltip(hoverTooltipTarget);
+            }
+        });
+
+        window.addEventListener("scroll", function () {
+            if (hoverTooltipTarget) {
+                positionHoverTooltip(hoverTooltipTarget);
+            }
+        }, true);
     }
 
     function getActionsAdapter() {
@@ -3389,6 +3528,7 @@
         revealBtn.innerHTML = getSvgIconMarkup("vb-icon-folder");
         revealBtn.title = "Reveal in file manager";
         revealBtn.setAttribute("aria-label", "Reveal in file manager");
+        revealBtn.setAttribute("data-tooltip", "Reveal");
         revealBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
                 event.preventDefault();
@@ -3406,6 +3546,7 @@
         deleteBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
         deleteBtn.title = "Delete frame";
         deleteBtn.setAttribute("aria-label", "Delete frame");
+        deleteBtn.setAttribute("data-tooltip", "Delete");
         deleteBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
                 event.preventDefault();
@@ -4710,14 +4851,14 @@
         var groupStateLabelKey;
         var itemStateLabelKey;
         var actionsVideo = [
-            { id: "import", icon: "vb-icon-import", title: "Import to AE", iconOnly: true },
-            { id: "reveal", icon: "vb-icon-folder", title: "Reveal in file manager", iconOnly: true },
-            { id: "delete", icon: "vb-icon-close", title: "Delete media", iconOnly: true }
+            { id: "import", icon: "vb-icon-import", title: "Import to AE", tooltip: "Import", iconOnly: true },
+            { id: "reveal", icon: "vb-icon-folder", title: "Reveal in file manager", tooltip: "Reveal", iconOnly: true },
+            { id: "delete", icon: "vb-icon-close", title: "Delete media", tooltip: "Delete", iconOnly: true }
         ];
         var actionsImage = [
-            { id: "to_frames", icon: "vb-icon-frames", title: "Add image to Captured Frames", iconOnly: true },
-            { id: "reveal", icon: "vb-icon-folder", title: "Reveal in file manager", iconOnly: true },
-            { id: "delete", icon: "vb-icon-close", title: "Delete media", iconOnly: true }
+            { id: "to_frames", icon: "vb-icon-frames", title: "Add image to Captured Frames", tooltip: "Add to frames", iconOnly: true },
+            { id: "reveal", icon: "vb-icon-folder", title: "Reveal in file manager", tooltip: "Reveal", iconOnly: true },
+            { id: "delete", icon: "vb-icon-close", title: "Delete media", tooltip: "Delete", iconOnly: true }
         ];
         var cardActions;
         var currentItem;
@@ -4915,6 +5056,7 @@
                         }
                         actionBtn.title = cardActions[a].title;
                         actionBtn.setAttribute("aria-label", cardActions[a].title);
+                        actionBtn.setAttribute("data-tooltip", cardActions[a].tooltip || cardActions[a].title);
                         bindGroupMediaAction(actionBtn, cardActions[a].id, currentItem.kind, currentItem.id);
                         mediaActions.appendChild(actionBtn);
                     }
@@ -4980,6 +5122,7 @@
             reuseBtn.innerHTML = getSvgIconMarkup("vb-icon-refresh");
             reuseBtn.title = "Reuse this batch in composer";
             reuseBtn.setAttribute("aria-label", "Reuse this batch in composer");
+            reuseBtn.setAttribute("data-tooltip", "Reuse prompt");
             reuseBtn.addEventListener("click", (function (groupCopy) {
                 return function (event) {
                     if (event && typeof event.preventDefault === "function") {
@@ -5471,6 +5614,7 @@
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-import");
             actionBtn.title = "Import to AE";
             actionBtn.setAttribute("aria-label", "Import to AE");
+            actionBtn.setAttribute("data-tooltip", "Import");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5494,6 +5638,7 @@
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-frames");
             actionBtn.title = "Add image to Captured Frames";
             actionBtn.setAttribute("aria-label", "Add image to Captured Frames");
+            actionBtn.setAttribute("data-tooltip", "Add to frames");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5517,6 +5662,7 @@
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-folder");
             actionBtn.title = "Reveal in file manager";
             actionBtn.setAttribute("aria-label", "Reveal in file manager");
+            actionBtn.setAttribute("data-tooltip", "Reveal");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5540,6 +5686,7 @@
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
             actionBtn.title = "Delete image";
             actionBtn.setAttribute("aria-label", "Delete image");
+            actionBtn.setAttribute("data-tooltip", "Delete");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -6193,6 +6340,7 @@
 
     function renderAll(state) {
         try {
+            hideHoverTooltip();
             if (ensureStateSelections(state)) {
                 return;
             }
@@ -10137,6 +10285,7 @@
         startWindowSizeWatcher();
 
         bindActions();
+        bindHoverTooltips();
         var localActionsAdapter = getActionsAdapter();
         if (localActionsAdapter && typeof localActionsAdapter.bindUi === "function") {
             localActionsAdapter.bindUi();
