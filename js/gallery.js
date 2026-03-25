@@ -3388,6 +3388,7 @@
         revealBtn.className = "shot-card-action-btn is-quiet is-icon-only";
         revealBtn.innerHTML = getSvgIconMarkup("vb-icon-folder");
         revealBtn.title = "Reveal in file manager";
+        revealBtn.setAttribute("aria-label", "Reveal in file manager");
         revealBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
                 event.preventDefault();
@@ -3404,6 +3405,7 @@
         deleteBtn.className = "shot-card-action-btn is-danger is-icon-only";
         deleteBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
         deleteBtn.title = "Delete frame";
+        deleteBtn.setAttribute("aria-label", "Delete frame");
         deleteBtn.addEventListener("click", function (event) {
             if (event && typeof event.preventDefault === "function") {
                 event.preventDefault();
@@ -4912,6 +4914,7 @@
                             actionBtn.textContent = cardActions[a].text || "";
                         }
                         actionBtn.title = cardActions[a].title;
+                        actionBtn.setAttribute("aria-label", cardActions[a].title);
                         bindGroupMediaAction(actionBtn, cardActions[a].id, currentItem.kind, currentItem.id);
                         mediaActions.appendChild(actionBtn);
                     }
@@ -4976,6 +4979,7 @@
             reuseBtn.className = "flow-reuse-btn";
             reuseBtn.innerHTML = getSvgIconMarkup("vb-icon-refresh");
             reuseBtn.title = "Reuse this batch in composer";
+            reuseBtn.setAttribute("aria-label", "Reuse this batch in composer");
             reuseBtn.addEventListener("click", (function (groupCopy) {
                 return function (event) {
                     if (event && typeof event.preventDefault === "function") {
@@ -5466,6 +5470,7 @@
             actionBtn.className = "video-card-action-btn is-accent is-icon-only";
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-import");
             actionBtn.title = "Import to AE";
+            actionBtn.setAttribute("aria-label", "Import to AE");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5488,6 +5493,7 @@
             actionBtn.className = "video-card-action-btn is-highlight is-icon-only";
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-frames");
             actionBtn.title = "Add image to Captured Frames";
+            actionBtn.setAttribute("aria-label", "Add image to Captured Frames");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5510,6 +5516,7 @@
             actionBtn.className = "video-card-action-btn is-quiet is-icon-only";
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-folder");
             actionBtn.title = "Reveal in file manager";
+            actionBtn.setAttribute("aria-label", "Reveal in file manager");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
@@ -5532,6 +5539,7 @@
             actionBtn.className = "video-card-action-btn is-danger is-icon-only";
             actionBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
             actionBtn.title = "Delete image";
+            actionBtn.setAttribute("aria-label", "Delete image");
             actionBtn.addEventListener("click", function (event) {
                 var target = event.currentTarget && event.currentTarget.parentNode ? event.currentTarget.parentNode.parentNode : null;
                 var imageId = target ? target.getAttribute("data-image-id") : null;
