@@ -4819,6 +4819,10 @@
         var groups = collectUnifiedMediaGroups(state);
         var renderKeyParts = [];
         var renderKey = "";
+        var groupRenderKeys = {};
+        var existingRows = {};
+        var desiredRows = [];
+        var childNodes;
         var i;
         var j;
         var group;
@@ -4874,6 +4878,326 @@
             container.appendChild(chip);
         }
 
+        function buildGroupRow(groupToRender, rowRenderKey) {
+            var builtRow;
+            var builtMediaStrip;
+            var builtMediaCard;
+            var builtThumbWrap;
+            var builtMediaThumb;
+            var builtMediaStateChip;
+            var builtMediaCaption;
+            var builtMediaActions;
+            var builtActionBtn;
+            var builtMetaWrap;
+            var builtMetaHead;
+            var builtActionsWrap;
+            var builtTitleLine;
+            var builtSubLine;
+            var builtDateLine;
+            var builtErrorLine;
+            var builtMetaThumbs;
+            var builtMetaThumb;
+            var builtReuseBtn;
+            var builtDeleteBatchBtn;
+            var builtClearPendingBtn;
+            var builtMiniThumbPath;
+            var builtDisplayDate;
+            var builtAspectClass;
+            var builtSelectedClass;
+            var builtBatchCount;
+            var builtCardActions;
+            var builtCurrentItem;
+            var builtA;
+            var builtJ;
+
+            builtRow = document.createElement("div");
+            builtRow.className = "flow-group-row flow-state-" + groupToRender.stateClass;
+            builtRow.setAttribute("data-group-key", groupToRender.key);
+            builtRow.setAttribute("data-group-kind", groupToRender.kind);
+            builtRow.setAttribute("data-render-key", rowRenderKey);
+
+            builtMediaStrip = document.createElement("div");
+            builtMediaStrip.className = "flow-group-strip " + getAspectClass(groupToRender.aspectRatio || "16:9");
+            builtMediaStrip.setAttribute("data-count", String(groupToRender.items.length));
+            builtMediaStrip.style.setProperty("--group-count", String(groupToRender.items.length > 0 ? groupToRender.items.length : 1));
+
+            for (builtJ = 0; builtJ < groupToRender.items.length; builtJ += 1) {
+                builtCurrentItem = groupToRender.items[builtJ];
+                builtAspectClass = getAspectClass(builtCurrentItem.aspectRatio || groupToRender.aspectRatio || "16:9");
+                builtSelectedClass = "";
+                if (builtCurrentItem.kind === "video" && builtCurrentItem.id && builtCurrentItem.id === state.selectedVideoId) {
+                    builtSelectedClass = " is-selected";
+                } else if (builtCurrentItem.kind === "image" && builtCurrentItem.id && builtCurrentItem.id === state.selectedImageId) {
+                    builtSelectedClass = " is-selected";
+                }
+                builtMediaCard = document.createElement("div");
+                builtMediaCard.className = "flow-group-item flow-state-" + builtCurrentItem.stateClass + " " + builtAspectClass + builtSelectedClass;
+                builtMediaCard.setAttribute("data-media-kind", builtCurrentItem.kind);
+                builtMediaCard.setAttribute("data-media-id", builtCurrentItem.id || "");
+
+                builtThumbWrap = document.createElement("div");
+                builtThumbWrap.className = "flow-group-thumb";
+
+                if (builtCurrentItem.kind === "video" && builtCurrentItem.path && builtCurrentItem.stateClass !== "missing") {
+                    builtMediaThumb = document.createElement("video");
+                    builtMediaThumb.className = "video-thumb";
+                    builtMediaThumb.muted = true;
+                    builtMediaThumb.defaultMuted = true;
+                    builtMediaThumb.loop = true;
+                    builtMediaThumb.preload = "auto";
+                    builtMediaThumb.setAttribute("playsinline", "playsinline");
+                    builtMediaThumb.src = toFileUrl(builtCurrentItem.path);
+                    builtThumbWrap.appendChild(builtMediaThumb);
+                } else if (builtCurrentItem.kind === "image" && builtCurrentItem.path && builtCurrentItem.stateClass !== "missing") {
+                    builtMediaThumb = document.createElement("img");
+                    builtMediaThumb.className = "shot-thumb";
+                    builtMediaThumb.alt = baseName(builtCurrentItem.path);
+                    builtMediaThumb.src = toFileUrl(builtCurrentItem.path);
+                    builtThumbWrap.appendChild(builtMediaThumb);
+                } else if (builtCurrentItem.previewPath && fileExists(builtCurrentItem.previewPath) && isSupportedImagePath(builtCurrentItem.previewPath)) {
+                    builtMediaThumb = document.createElement("img");
+                    builtMediaThumb.className = "shot-thumb";
+                    builtMediaThumb.alt = "Preview";
+                    builtMediaThumb.src = toFileUrl(builtCurrentItem.previewPath);
+                    builtThumbWrap.appendChild(builtMediaThumb);
+                } else {
+                    builtMediaThumb = document.createElement("div");
+                    builtMediaThumb.className = "flow-thumb-placeholder";
+                    if (builtCurrentItem.kind === "video-slot" || builtCurrentItem.kind === "image-slot") {
+                        builtMediaThumb.textContent = builtCurrentItem.stateLabel || "Pending";
+                    } else if (builtCurrentItem.kind === "video-job" || builtCurrentItem.kind === "image-job") {
+                        if (builtCurrentItem.stateClass === "error" && builtCurrentItem.error) {
+                            builtMediaThumb.textContent = builtCurrentItem.error;
+                        } else {
+                            builtMediaThumb.textContent = builtCurrentItem.stateLabel || "Pending";
+                        }
+                    } else {
+                        builtMediaThumb.textContent = "No preview";
+                    }
+                    builtThumbWrap.appendChild(builtMediaThumb);
+                }
+
+                if (builtCurrentItem.stateClass !== "done") {
+                    builtMediaStateChip = document.createElement("span");
+                    builtMediaStateChip.className = "state-chip state-" + builtCurrentItem.stateClass;
+                    builtMediaStateChip.textContent = builtCurrentItem.stateLabel || "-";
+                    builtThumbWrap.appendChild(builtMediaStateChip);
+                }
+
+                if (builtCurrentItem.importedToProject) {
+                    builtMediaStateChip = document.createElement("span");
+                    builtMediaStateChip.className = "state-chip state-imported";
+                    builtMediaStateChip.textContent = "Imported";
+                    builtMediaStateChip.title = "This asset has already been copied into the current AE project.";
+                    builtThumbWrap.appendChild(builtMediaStateChip);
+                }
+
+                builtMediaCaption = document.createElement("div");
+                builtMediaCaption.className = "flow-group-caption";
+                builtMediaCaption.textContent = truncateText(groupToRender.prompt || "Generated media", 48);
+                builtMediaCaption.title = groupToRender.prompt || "Generated media";
+
+                if (builtCurrentItem.kind === "video" || builtCurrentItem.kind === "image") {
+                    builtMediaActions = document.createElement("div");
+                    builtMediaActions.className = "flow-group-actions";
+                    builtCardActions = builtCurrentItem.kind === "image" ? actionsImage : actionsVideo;
+                    for (builtA = 0; builtA < builtCardActions.length; builtA += 1) {
+                        builtActionBtn = document.createElement("button");
+                        builtActionBtn.type = "button";
+                        builtActionBtn.className = "video-card-action-btn";
+                        if (builtCardActions[builtA].id === "delete") {
+                            builtActionBtn.className += " is-danger is-icon-only";
+                        } else if (builtCardActions[builtA].id === "import") {
+                            builtActionBtn.className += " is-accent is-icon-only";
+                        } else if (builtCardActions[builtA].id === "to_frames") {
+                            builtActionBtn.className += " is-highlight is-icon-only";
+                        } else if (builtCardActions[builtA].id === "reveal") {
+                            builtActionBtn.className += " is-quiet is-icon-only";
+                        }
+                        if (builtCardActions[builtA].icon) {
+                            builtActionBtn.innerHTML = getSvgIconMarkup(builtCardActions[builtA].icon);
+                        } else {
+                            builtActionBtn.textContent = builtCardActions[builtA].text || "";
+                        }
+                        builtActionBtn.title = builtCardActions[builtA].title;
+                        builtActionBtn.setAttribute("aria-label", builtCardActions[builtA].title);
+                        builtActionBtn.setAttribute("data-tooltip", builtCardActions[builtA].tooltip || builtCardActions[builtA].title);
+                        bindGroupMediaAction(builtActionBtn, builtCardActions[builtA].id, builtCurrentItem.kind, builtCurrentItem.id);
+                        builtMediaActions.appendChild(builtActionBtn);
+                    }
+                    builtThumbWrap.appendChild(builtMediaActions);
+                }
+
+                builtMediaCard.appendChild(builtThumbWrap);
+                builtMediaCard.appendChild(builtMediaCaption);
+
+                builtMediaCard.addEventListener("click", function (event) {
+                    var target = event.currentTarget;
+                    var kind = target ? target.getAttribute("data-media-kind") : "";
+                    var id = target ? target.getAttribute("data-media-id") : "";
+                    if (!id) {
+                        return;
+                    }
+                    if (kind === "video") {
+                        stateAdapterUpdate({ selectedVideoId: id });
+                        openMediaPreview("video", id);
+                    } else if (kind === "image") {
+                        stateAdapterUpdate({ selectedImageId: id });
+                        openMediaPreview("image", id);
+                    }
+                });
+
+                if (builtCurrentItem.kind === "video" && builtMediaThumb && builtMediaThumb.tagName && builtMediaThumb.tagName.toLowerCase() === "video") {
+                    (function (videoEl, cardEl) {
+                        function startPreview() {
+                            pauseAllInlineVideoPreviews(videoEl);
+                            playInlineVideoPreview(videoEl);
+                        }
+                        function stopPreview() {
+                            stopInlineVideoPreview(videoEl);
+                        }
+                        cardEl.addEventListener("mouseenter", startPreview);
+                        cardEl.addEventListener("mouseleave", stopPreview);
+                        cardEl.addEventListener("focusin", startPreview);
+                        cardEl.addEventListener("focusout", stopPreview);
+                    }(builtMediaThumb, builtMediaCard));
+                }
+
+                builtMediaStrip.appendChild(builtMediaCard);
+            }
+
+            builtMetaWrap = document.createElement("div");
+            builtMetaWrap.className = "flow-group-meta";
+
+            builtMetaHead = document.createElement("div");
+            builtMetaHead.className = "flow-row-meta-head";
+
+            builtTitleLine = document.createElement("div");
+            builtTitleLine.className = "flow-row-title";
+            builtTitleLine.textContent = groupToRender.prompt || (groupToRender.kind === "video" ? "Video request" : "Image request");
+            builtTitleLine.title = groupToRender.prompt || (groupToRender.kind === "video" ? "Video request" : "Image request");
+            builtMetaHead.appendChild(builtTitleLine);
+
+            builtActionsWrap = document.createElement("div");
+            builtActionsWrap.className = "flow-row-actions";
+
+            builtReuseBtn = document.createElement("button");
+            builtReuseBtn.type = "button";
+            builtReuseBtn.className = "flow-reuse-btn";
+            builtReuseBtn.innerHTML = getSvgIconMarkup("vb-icon-refresh");
+            builtReuseBtn.title = "Reuse this batch in composer";
+            builtReuseBtn.setAttribute("aria-label", "Reuse this batch in composer");
+            builtReuseBtn.setAttribute("data-tooltip", "Reuse prompt");
+            builtReuseBtn.addEventListener("click", (function (groupCopy) {
+                return function (event) {
+                    if (event && typeof event.preventDefault === "function") {
+                        event.preventDefault();
+                    }
+                    if (event && typeof event.stopPropagation === "function") {
+                        event.stopPropagation();
+                    }
+                    applyGroupToComposer(groupCopy);
+                };
+            }(groupToRender)));
+            builtActionsWrap.appendChild(builtReuseBtn);
+
+            builtDeleteBatchBtn = document.createElement("button");
+            builtDeleteBatchBtn.type = "button";
+            builtDeleteBatchBtn.className = "flow-batch-delete-btn is-danger";
+            builtDeleteBatchBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
+            builtDeleteBatchBtn.title = "Delete batch";
+            builtDeleteBatchBtn.setAttribute("aria-label", "Delete batch");
+            builtDeleteBatchBtn.addEventListener("click", (function (groupCopy2) {
+                return function (event) {
+                    if (event && typeof event.preventDefault === "function") {
+                        event.preventDefault();
+                    }
+                    if (event && typeof event.stopPropagation === "function") {
+                        event.stopPropagation();
+                    }
+                    deleteBatchGroup(groupCopy2);
+                };
+            }(groupToRender)));
+            builtActionsWrap.appendChild(builtDeleteBatchBtn);
+
+            if (groupToRender.hasPendingJobs) {
+                builtClearPendingBtn = document.createElement("button");
+                builtClearPendingBtn.type = "button";
+                builtClearPendingBtn.className = "flow-clear-pending-btn is-danger";
+                builtClearPendingBtn.textContent = "Clear";
+                builtClearPendingBtn.title = "Remove pending placeholders in this batch";
+                builtClearPendingBtn.addEventListener("click", (function (groupKeyCopy) {
+                    return function (event) {
+                        var removed;
+                        if (event && typeof event.preventDefault === "function") {
+                            event.preventDefault();
+                        }
+                        if (event && typeof event.stopPropagation === "function") {
+                            event.stopPropagation();
+                        }
+                        removed = clearPendingJobsForGroup(groupKeyCopy);
+                        if (removed > 0) {
+                            setStatus("Removed " + removed + " pending item(s) from batch.", false);
+                            return;
+                        }
+                        setStatus("No pending placeholders to clear.", false);
+                    };
+                }(groupToRender.key)));
+                builtActionsWrap.appendChild(builtClearPendingBtn);
+            }
+            builtMetaHead.appendChild(builtActionsWrap);
+            builtMetaWrap.appendChild(builtMetaHead);
+
+            builtSubLine = document.createElement("div");
+            builtSubLine.className = "flow-row-sub";
+            builtBatchCount = groupToRender.sampleCount || groupToRender.items.length || 1;
+            appendMetaChip(builtSubLine, groupToRender.model || "-", "chip-model");
+            if (groupToRender.modeLabel) {
+                appendMetaChip(builtSubLine, groupToRender.modeLabel, "chip-mode");
+            }
+            appendMetaChip(builtSubLine, groupToRender.aspectRatio || "-", "chip-ratio");
+            if (groupToRender.imageSize) {
+                appendMetaChip(builtSubLine, groupToRender.imageSize, "chip-size");
+            }
+            appendMetaChip(builtSubLine, "x" + String(builtBatchCount), "chip-samples");
+            builtMetaWrap.appendChild(builtSubLine);
+
+            builtMetaThumbs = document.createElement("div");
+            builtMetaThumbs.className = "flow-meta-thumbs";
+            for (builtJ = 0; builtJ < groupToRender.items.length && builtJ < 2; builtJ += 1) {
+                builtMiniThumbPath = groupToRender.items[builtJ].path || groupToRender.items[builtJ].previewPath || "";
+                if (!builtMiniThumbPath || !fileExists(builtMiniThumbPath) || !isSupportedImagePath(builtMiniThumbPath)) {
+                    continue;
+                }
+                builtMetaThumb = document.createElement("img");
+                builtMetaThumb.className = "flow-meta-thumb";
+                builtMetaThumb.alt = "Media thumb";
+                builtMetaThumb.src = toFileUrl(builtMiniThumbPath);
+                builtMetaThumbs.appendChild(builtMetaThumb);
+            }
+            if (builtMetaThumbs.childNodes.length > 0) {
+                builtMetaWrap.appendChild(builtMetaThumbs);
+            }
+
+            builtDateLine = document.createElement("div");
+            builtDateLine.className = "flow-row-date";
+            builtDisplayDate = formatDateOnly(groupToRender.createdAt);
+            builtDateLine.textContent = "Created " + builtDisplayDate;
+            builtMetaWrap.appendChild(builtDateLine);
+
+            if (groupToRender.error) {
+                builtErrorLine = document.createElement("div");
+                builtErrorLine.className = "flow-row-error";
+                builtErrorLine.textContent = truncateText(groupToRender.error, 180);
+                builtMetaWrap.appendChild(builtErrorLine);
+            }
+
+            builtRow.appendChild(builtMediaStrip);
+            builtRow.appendChild(builtMetaWrap);
+
+            return builtRow;
+        }
+
         if (!list) {
             return;
         }
@@ -4927,6 +5251,7 @@
                 currentItem.error || ""
             ].join("|"));
         }
+            groupRenderKeys[group.key] = renderKeyParts.slice(renderKeyParts.length - (group.items.length + 1)).join("||");
         }
         renderKey = renderKeyParts.join("||");
         if (lastVideosListRenderKey === renderKey) {
@@ -4934,8 +5259,27 @@
         }
         lastVideosListRenderKey = renderKey;
 
-        list.innerHTML = "";
+        childNodes = list.children;
+        for (i = 0; i < childNodes.length; i += 1) {
+            row = childNodes[i];
+            if (!row || !row.getAttribute) {
+                continue;
+            }
+            if (row.getAttribute("data-group-key")) {
+                existingRows[row.getAttribute("data-group-key")] = row;
+            }
+        }
+
+        for (i = list.children.length - 1; i >= 0; i -= 1) {
+            row = list.children[i];
+            if (!row || !row.getAttribute || row.getAttribute("data-group-key")) {
+                continue;
+            }
+            list.removeChild(row);
+        }
+
         if (!groups.length) {
+            list.innerHTML = "";
             row = document.createElement("div");
             row.className = "muted-note";
             row.textContent = "No generated media yet.";
@@ -4945,291 +5289,24 @@
 
         for (i = 0; i < groups.length; i += 1) {
             group = groups[i];
-
-            row = document.createElement("div");
-            row.className = "flow-group-row flow-state-" + group.stateClass;
-            row.setAttribute("data-group-key", group.key);
-            row.setAttribute("data-group-kind", group.kind);
-
-            mediaStrip = document.createElement("div");
-            mediaStrip.className = "flow-group-strip " + getAspectClass(group.aspectRatio || "16:9");
-            mediaStrip.setAttribute("data-count", String(group.items.length));
-            mediaStrip.style.setProperty("--group-count", String(group.items.length > 0 ? group.items.length : 1));
-
-            for (j = 0; j < group.items.length; j += 1) {
-                currentItem = group.items[j];
-                aspectClass = getAspectClass(currentItem.aspectRatio || group.aspectRatio || "16:9");
-                selectedClass = "";
-                if (currentItem.kind === "video" && currentItem.id && currentItem.id === state.selectedVideoId) {
-                    selectedClass = " is-selected";
-                } else if (currentItem.kind === "image" && currentItem.id && currentItem.id === state.selectedImageId) {
-                    selectedClass = " is-selected";
-                }
-                mediaCard = document.createElement("div");
-                mediaCard.className = "flow-group-item flow-state-" + currentItem.stateClass + " " + aspectClass + selectedClass;
-                mediaCard.setAttribute("data-media-kind", currentItem.kind);
-                mediaCard.setAttribute("data-media-id", currentItem.id || "");
-
-                thumbWrap = document.createElement("div");
-                thumbWrap.className = "flow-group-thumb";
-
-                if (currentItem.kind === "video" && currentItem.path && currentItem.stateClass !== "missing") {
-                    mediaThumb = document.createElement("video");
-                    mediaThumb.className = "video-thumb";
-                    mediaThumb.muted = true;
-                    mediaThumb.defaultMuted = true;
-                    mediaThumb.loop = true;
-                    mediaThumb.preload = "auto";
-                    mediaThumb.setAttribute("playsinline", "playsinline");
-                    mediaThumb.src = toFileUrl(currentItem.path);
-                    thumbWrap.appendChild(mediaThumb);
-                } else if (currentItem.kind === "image" && currentItem.path && currentItem.stateClass !== "missing") {
-                    mediaThumb = document.createElement("img");
-                    mediaThumb.className = "shot-thumb";
-                    mediaThumb.alt = baseName(currentItem.path);
-                    mediaThumb.src = toFileUrl(currentItem.path);
-                    thumbWrap.appendChild(mediaThumb);
-                } else if (currentItem.previewPath && fileExists(currentItem.previewPath) && isSupportedImagePath(currentItem.previewPath)) {
-                    mediaThumb = document.createElement("img");
-                    mediaThumb.className = "shot-thumb";
-                    mediaThumb.alt = "Preview";
-                    mediaThumb.src = toFileUrl(currentItem.previewPath);
-                    thumbWrap.appendChild(mediaThumb);
-                } else {
-                    mediaThumb = document.createElement("div");
-                    mediaThumb.className = "flow-thumb-placeholder";
-                    if (currentItem.kind === "video-slot" || currentItem.kind === "image-slot") {
-                        mediaThumb.textContent = currentItem.stateLabel || "Pending";
-                    } else if (currentItem.kind === "video-job" || currentItem.kind === "image-job") {
-                        if (currentItem.stateClass === "error" && currentItem.error) {
-                            mediaThumb.textContent = currentItem.error;
-                        } else {
-                            mediaThumb.textContent = currentItem.stateLabel || "Pending";
-                        }
-                    } else {
-                        mediaThumb.textContent = "No preview";
-                    }
-                    thumbWrap.appendChild(mediaThumb);
-                }
-
-                if (currentItem.stateClass !== "done") {
-                    mediaStateChip = document.createElement("span");
-                    mediaStateChip.className = "state-chip state-" + currentItem.stateClass;
-                    mediaStateChip.textContent = currentItem.stateLabel || "-";
-                    thumbWrap.appendChild(mediaStateChip);
-                }
-
-                if (currentItem.importedToProject) {
-                    mediaStateChip = document.createElement("span");
-                    mediaStateChip.className = "state-chip state-imported";
-                    mediaStateChip.textContent = "Imported";
-                    mediaStateChip.title = "This asset has already been copied into the current AE project.";
-                    thumbWrap.appendChild(mediaStateChip);
-                }
-
-                mediaCaption = document.createElement("div");
-                mediaCaption.className = "flow-group-caption";
-                mediaCaption.textContent = truncateText(group.prompt || "Generated media", 48);
-                mediaCaption.title = group.prompt || "Generated media";
-
-                if (currentItem.kind === "video" || currentItem.kind === "image") {
-                    mediaActions = document.createElement("div");
-                    mediaActions.className = "flow-group-actions";
-                    cardActions = currentItem.kind === "image" ? actionsImage : actionsVideo;
-                    for (var a = 0; a < cardActions.length; a += 1) {
-                        actionBtn = document.createElement("button");
-                        actionBtn.type = "button";
-                        actionBtn.className = "video-card-action-btn";
-                        if (cardActions[a].id === "delete") {
-                            actionBtn.className += " is-danger is-icon-only";
-                        } else if (cardActions[a].id === "import") {
-                            actionBtn.className += " is-accent is-icon-only";
-                        } else if (cardActions[a].id === "to_frames") {
-                            actionBtn.className += " is-highlight is-icon-only";
-                        } else if (cardActions[a].id === "reveal") {
-                            actionBtn.className += " is-quiet is-icon-only";
-                        }
-                        if (cardActions[a].icon) {
-                            actionBtn.innerHTML = getSvgIconMarkup(cardActions[a].icon);
-                        } else {
-                            actionBtn.textContent = cardActions[a].text || "";
-                        }
-                        actionBtn.title = cardActions[a].title;
-                        actionBtn.setAttribute("aria-label", cardActions[a].title);
-                        actionBtn.setAttribute("data-tooltip", cardActions[a].tooltip || cardActions[a].title);
-                        bindGroupMediaAction(actionBtn, cardActions[a].id, currentItem.kind, currentItem.id);
-                        mediaActions.appendChild(actionBtn);
-                    }
-                    thumbWrap.appendChild(mediaActions);
-                }
-
-                mediaCard.appendChild(thumbWrap);
-                mediaCard.appendChild(mediaCaption);
-
-                mediaCard.addEventListener("click", function (event) {
-                    var target = event.currentTarget;
-                    var kind = target ? target.getAttribute("data-media-kind") : "";
-                    var id = target ? target.getAttribute("data-media-id") : "";
-                    if (!id) {
-                        return;
-                    }
-                    if (kind === "video") {
-                        stateAdapterUpdate({ selectedVideoId: id });
-                        openMediaPreview("video", id);
-                    } else if (kind === "image") {
-                        stateAdapterUpdate({ selectedImageId: id });
-                        openMediaPreview("image", id);
-                    }
-                });
-
-                if (currentItem.kind === "video" && mediaThumb && mediaThumb.tagName && mediaThumb.tagName.toLowerCase() === "video") {
-                    (function (videoEl, cardEl) {
-                        function startPreview() {
-                            pauseAllInlineVideoPreviews(videoEl);
-                            playInlineVideoPreview(videoEl);
-                        }
-                        function stopPreview() {
-                            stopInlineVideoPreview(videoEl);
-                        }
-                        cardEl.addEventListener("mouseenter", startPreview);
-                        cardEl.addEventListener("mouseleave", stopPreview);
-                        cardEl.addEventListener("focusin", startPreview);
-                        cardEl.addEventListener("focusout", stopPreview);
-                    }(mediaThumb, mediaCard));
-                }
-
-                mediaStrip.appendChild(mediaCard);
+            row = existingRows[group.key];
+            if (!row || row.getAttribute("data-render-key") !== groupRenderKeys[group.key]) {
+                row = buildGroupRow(group, groupRenderKeys[group.key]);
             }
+            desiredRows.push(row);
+        }
 
-            metaWrap = document.createElement("div");
-            metaWrap.className = "flow-group-meta";
-
-            metaHead = document.createElement("div");
-            metaHead.className = "flow-row-meta-head";
-
-            titleLine = document.createElement("div");
-            titleLine.className = "flow-row-title";
-            titleLine.textContent = group.prompt || (group.kind === "video" ? "Video request" : "Image request");
-            titleLine.title = group.prompt || (group.kind === "video" ? "Video request" : "Image request");
-            metaHead.appendChild(titleLine);
-
-            actionsWrap = document.createElement("div");
-            actionsWrap.className = "flow-row-actions";
-
-            reuseBtn = document.createElement("button");
-            reuseBtn.type = "button";
-            reuseBtn.className = "flow-reuse-btn";
-            reuseBtn.innerHTML = getSvgIconMarkup("vb-icon-refresh");
-            reuseBtn.title = "Reuse this batch in composer";
-            reuseBtn.setAttribute("aria-label", "Reuse this batch in composer");
-            reuseBtn.setAttribute("data-tooltip", "Reuse prompt");
-            reuseBtn.addEventListener("click", (function (groupCopy) {
-                return function (event) {
-                    if (event && typeof event.preventDefault === "function") {
-                        event.preventDefault();
-                    }
-                    if (event && typeof event.stopPropagation === "function") {
-                        event.stopPropagation();
-                    }
-                    applyGroupToComposer(groupCopy);
-                };
-            }(group)));
-            actionsWrap.appendChild(reuseBtn);
-
-            deleteBatchBtn = document.createElement("button");
-            deleteBatchBtn.type = "button";
-            deleteBatchBtn.className = "flow-batch-delete-btn is-danger";
-            deleteBatchBtn.innerHTML = getSvgIconMarkup("vb-icon-close");
-            deleteBatchBtn.title = "Delete batch";
-            deleteBatchBtn.setAttribute("aria-label", "Delete batch");
-            deleteBatchBtn.addEventListener("click", (function (groupCopy2) {
-                return function (event) {
-                    if (event && typeof event.preventDefault === "function") {
-                        event.preventDefault();
-                    }
-                    if (event && typeof event.stopPropagation === "function") {
-                        event.stopPropagation();
-                    }
-                    deleteBatchGroup(groupCopy2);
-                };
-            }(group)));
-            actionsWrap.appendChild(deleteBatchBtn);
-
-            if (group.hasPendingJobs) {
-                clearPendingBtn = document.createElement("button");
-                clearPendingBtn.type = "button";
-                clearPendingBtn.className = "flow-clear-pending-btn is-danger";
-                clearPendingBtn.textContent = "Clear";
-                clearPendingBtn.title = "Remove pending placeholders in this batch";
-                clearPendingBtn.addEventListener("click", (function (groupKeyCopy) {
-                    return function (event) {
-                        var removed;
-                        if (event && typeof event.preventDefault === "function") {
-                            event.preventDefault();
-                        }
-                        if (event && typeof event.stopPropagation === "function") {
-                            event.stopPropagation();
-                        }
-                        removed = clearPendingJobsForGroup(groupKeyCopy);
-                        if (removed > 0) {
-                            setStatus("Removed " + removed + " pending item(s) from batch.", false);
-                            return;
-                        }
-                        setStatus("No pending placeholders to clear.", false);
-                    };
-                }(group.key)));
-                actionsWrap.appendChild(clearPendingBtn);
+        for (var existingKey in existingRows) {
+            if (!Object.prototype.hasOwnProperty.call(existingRows, existingKey)) {
+                continue;
             }
-            metaHead.appendChild(actionsWrap);
-            metaWrap.appendChild(metaHead);
-
-            subLine = document.createElement("div");
-            subLine.className = "flow-row-sub";
-            batchCount = group.sampleCount || group.items.length || 1;
-            appendMetaChip(subLine, group.model || "-", "chip-model");
-            if (group.modeLabel) {
-                appendMetaChip(subLine, group.modeLabel, "chip-mode");
+            if (!groupRenderKeys[existingKey] && existingRows[existingKey].parentNode === list) {
+                list.removeChild(existingRows[existingKey]);
             }
-            appendMetaChip(subLine, group.aspectRatio || "-", "chip-ratio");
-            if (group.imageSize) {
-                appendMetaChip(subLine, group.imageSize, "chip-size");
-            }
-            appendMetaChip(subLine, "x" + String(batchCount), "chip-samples");
-            metaWrap.appendChild(subLine);
+        }
 
-            metaThumbs = document.createElement("div");
-            metaThumbs.className = "flow-meta-thumbs";
-            for (j = 0; j < group.items.length && j < 2; j += 1) {
-                miniThumbPath = group.items[j].path || group.items[j].previewPath || "";
-                if (!miniThumbPath || !fileExists(miniThumbPath) || !isSupportedImagePath(miniThumbPath)) {
-                    continue;
-                }
-                metaThumb = document.createElement("img");
-                metaThumb.className = "flow-meta-thumb";
-                metaThumb.alt = "Media thumb";
-                metaThumb.src = toFileUrl(miniThumbPath);
-                metaThumbs.appendChild(metaThumb);
-            }
-            if (metaThumbs.childNodes.length > 0) {
-                metaWrap.appendChild(metaThumbs);
-            }
-
-            dateLine = document.createElement("div");
-            dateLine.className = "flow-row-date";
-            displayDate = formatDateOnly(group.createdAt);
-            dateLine.textContent = "Created " + displayDate;
-            metaWrap.appendChild(dateLine);
-
-            if (group.error) {
-                errorLine = document.createElement("div");
-                errorLine.className = "flow-row-error";
-                errorLine.textContent = truncateText(group.error, 180);
-                metaWrap.appendChild(errorLine);
-            }
-
-            row.appendChild(mediaStrip);
-            row.appendChild(metaWrap);
-            list.appendChild(row);
+        for (i = 0; i < desiredRows.length; i += 1) {
+            list.appendChild(desiredRows[i]);
         }
     }
 
@@ -6571,9 +6648,7 @@
         };
     }
 
-    function appendGeneratedVideo(result, context) {
-        var state = getState();
-        var videos = state.videos ? state.videos.slice(0) : [];
+    function createGeneratedVideoRecord(result, context) {
         var savedPath = result && result.downloadedPath ? result.downloadedPath : "";
         var videoRecord = {
             id: makeId("video"),
@@ -6607,6 +6682,13 @@
             throw new Error("Generated video file was not found on disk: " + savedPath);
         }
 
+        return videoRecord;
+    }
+
+    function appendGeneratedVideo(result, context) {
+        var state = getState();
+        var videos = state.videos ? state.videos.slice(0) : [];
+        var videoRecord = createGeneratedVideoRecord(result, context);
         videos.unshift(videoRecord);
 
         stateAdapterUpdate({
@@ -6617,9 +6699,7 @@
         return videoRecord;
     }
 
-    function appendGeneratedImage(result, context, dimensions) {
-        var state = getState();
-        var images = state.images ? state.images.slice(0) : [];
+    function createGeneratedImageRecord(result, context, dimensions) {
         var savedPath = result && (result.path || result.downloadedPath) ? (result.path || result.downloadedPath) : "";
         var imageRecord = {
             id: makeId("image"),
@@ -6649,10 +6729,67 @@
             throw new Error("Generated image file was not found on disk: " + savedPath);
         }
 
+        return imageRecord;
+    }
+
+    function appendGeneratedImage(result, context, dimensions) {
+        var state = getState();
+        var images = state.images ? state.images.slice(0) : [];
+        var imageRecord = createGeneratedImageRecord(result, context, dimensions);
         images.unshift(imageRecord);
 
         stateAdapterUpdate({
             images: images,
+            selectedImageId: imageRecord.id
+        });
+
+        return imageRecord;
+    }
+
+    function finalizeGeneratedVideoJob(jobId, result, context) {
+        var state = getState();
+        var videos = state.videos ? state.videos.slice(0) : [];
+        var pendingJobs = getPendingJobs(state).slice(0);
+        var videoRecord = createGeneratedVideoRecord(result, context);
+        var nextPendingJobs = [];
+        var i;
+
+        videos.unshift(videoRecord);
+        for (i = 0; i < pendingJobs.length; i += 1) {
+            if (!pendingJobs[i] || pendingJobs[i].id === jobId) {
+                continue;
+            }
+            nextPendingJobs.push(pendingJobs[i]);
+        }
+
+        stateAdapterUpdate({
+            videos: videos,
+            pendingJobs: nextPendingJobs,
+            selectedVideoId: videoRecord.id
+        });
+
+        return videoRecord;
+    }
+
+    function finalizeGeneratedImageJob(jobId, result, context, dimensions) {
+        var state = getState();
+        var images = state.images ? state.images.slice(0) : [];
+        var pendingJobs = getPendingJobs(state).slice(0);
+        var imageRecord = createGeneratedImageRecord(result, context, dimensions);
+        var nextPendingJobs = [];
+        var i;
+
+        images.unshift(imageRecord);
+        for (i = 0; i < pendingJobs.length; i += 1) {
+            if (!pendingJobs[i] || pendingJobs[i].id === jobId) {
+                continue;
+            }
+            nextPendingJobs.push(pendingJobs[i]);
+        }
+
+        stateAdapterUpdate({
+            images: images,
+            pendingJobs: nextPendingJobs,
             selectedImageId: imageRecord.id
         });
 
@@ -7082,8 +7219,7 @@
                     lastStage: "Importing"
                 });
 
-                appendGeneratedVideo(result, context);
-                removePendingJob(job.id);
+                finalizeGeneratedVideoJob(job.id, result, context);
                 if (result.requestMode === "text_only_fallback") {
                     setGenerationStatus("Sample " + (job.sampleIndex || 1) + "/" + (job.sampleCount || total) + ": Done (text-only fallback) (" + (done + 1) + "/" + total + ")", false);
                 } else {
@@ -7365,16 +7501,18 @@
             }
         }).then(function (result) {
             return readImageDimensions(result.path || result.downloadedPath).then(function (dimensions) {
-                appendGeneratedImage(result, context, dimensions);
                 if (jobId) {
-                    removePendingJob(jobId);
+                    finalizeGeneratedImageJob(jobId, result, context, dimensions);
+                } else {
+                    appendGeneratedImage(result, context, dimensions);
                 }
                 setImageGenerationStatus("Done.", false);
                 setStatus("Done: " + baseName(result.path || result.downloadedPath), false);
             }, function () {
-                appendGeneratedImage(result, context, null);
                 if (jobId) {
-                    removePendingJob(jobId);
+                    finalizeGeneratedImageJob(jobId, result, context, null);
+                } else {
+                    appendGeneratedImage(result, context, null);
                 }
                 setImageGenerationStatus("Done.", false);
                 setStatus("Done: " + baseName(result.path || result.downloadedPath), false);
