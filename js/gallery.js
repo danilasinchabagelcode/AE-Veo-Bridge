@@ -4821,6 +4821,7 @@
         var renderKey = "";
         var groupRenderKeys = {};
         var existingRows = {};
+        var existingRowsForKey;
         var desiredRows = [];
         var childNodes;
         var i;
@@ -5266,7 +5267,12 @@
                 continue;
             }
             if (row.getAttribute("data-group-key")) {
-                existingRows[row.getAttribute("data-group-key")] = row;
+                existingRowsForKey = existingRows[row.getAttribute("data-group-key")];
+                if (!existingRowsForKey) {
+                    existingRowsForKey = [];
+                    existingRows[row.getAttribute("data-group-key")] = existingRowsForKey;
+                }
+                existingRowsForKey.push(row);
             }
         }
 
@@ -5289,9 +5295,21 @@
 
         for (i = 0; i < groups.length; i += 1) {
             group = groups[i];
-            row = existingRows[group.key];
+            existingRowsForKey = existingRows[group.key] || [];
+            row = existingRowsForKey.length ? existingRowsForKey[0] : null;
             if (!row || row.getAttribute("data-render-key") !== groupRenderKeys[group.key]) {
+                for (j = 0; j < existingRowsForKey.length; j += 1) {
+                    if (existingRowsForKey[j] && existingRowsForKey[j].parentNode === list) {
+                        list.removeChild(existingRowsForKey[j]);
+                    }
+                }
                 row = buildGroupRow(group, groupRenderKeys[group.key]);
+            } else if (existingRowsForKey.length > 1) {
+                for (j = 1; j < existingRowsForKey.length; j += 1) {
+                    if (existingRowsForKey[j] && existingRowsForKey[j].parentNode === list) {
+                        list.removeChild(existingRowsForKey[j]);
+                    }
+                }
             }
             desiredRows.push(row);
         }
@@ -5300,8 +5318,13 @@
             if (!Object.prototype.hasOwnProperty.call(existingRows, existingKey)) {
                 continue;
             }
-            if (!groupRenderKeys[existingKey] && existingRows[existingKey].parentNode === list) {
-                list.removeChild(existingRows[existingKey]);
+            if (!groupRenderKeys[existingKey]) {
+                existingRowsForKey = existingRows[existingKey];
+                for (j = 0; j < existingRowsForKey.length; j += 1) {
+                    if (existingRowsForKey[j] && existingRowsForKey[j].parentNode === list) {
+                        list.removeChild(existingRowsForKey[j]);
+                    }
+                }
             }
         }
 
