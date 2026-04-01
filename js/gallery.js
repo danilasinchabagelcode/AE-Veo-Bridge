@@ -8061,6 +8061,38 @@
         processPendingImageQueue();
     }
 
+    function handleComposerPromptKeydown(event) {
+        var target;
+        var value;
+
+        if (!event) {
+            return;
+        }
+
+        if ((event.key !== "Enter" && event.keyCode !== 13) || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) {
+            return;
+        }
+
+        target = event.target || null;
+        value = trimText(target && typeof target.value === "string" ? target.value : "");
+        if (!value) {
+            return;
+        }
+
+        if (typeof event.preventDefault === "function") {
+            event.preventDefault();
+        }
+        if (typeof event.stopPropagation === "function") {
+            event.stopPropagation();
+        }
+
+        if (activeGenerationType === GEN_TYPE_IMAGE) {
+            onGenerateImageClick();
+            return;
+        }
+        onGenerateClick();
+    }
+
     function setStart() {
         var state = getState();
         if (!state.selectedShotId) {
@@ -10660,6 +10692,7 @@
                     // ignore
                 }
             });
+            promptInput.addEventListener("keydown", handleComposerPromptKeydown);
         }
         if (imagePromptInput) {
             imagePromptInput.addEventListener("change", function () {
@@ -10669,6 +10702,7 @@
                     // ignore
                 }
             });
+            imagePromptInput.addEventListener("keydown", handleComposerPromptKeydown);
         }
         if (imageSampleCountSelect) {
             imageSampleCountSelect.addEventListener("change", function () {

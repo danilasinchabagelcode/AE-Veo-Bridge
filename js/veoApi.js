@@ -1582,6 +1582,8 @@
                 prompt: prompt,
                 mimeType: mimeType,
                 aspectRatio: aspectRatio,
+                durationSeconds: options.durationSeconds,
+                resolution: options.resolution,
                 startImageBase64: startBase64,
                 endImageBase64: endBase64,
                 references: normalizedRefs,
@@ -1644,7 +1646,9 @@
                 textOnlyBody = _buildPredictRequestBody({
                     mode: "text",
                     prompt: prompt,
-                    aspectRatio: aspectRatio
+                    aspectRatio: aspectRatio,
+                    durationSeconds: options.durationSeconds,
+                    resolution: options.resolution
                 });
 
                 return _requestJson(predictUrl, {
