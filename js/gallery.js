@@ -16,6 +16,9 @@
     var VIDEO_MODE_REFERENCE = "reference";
     var GEN_TYPE_VIDEO = "video";
     var GEN_TYPE_IMAGE = "image";
+    var MODEL_VEO_31 = "veo-3.1-generate-preview";
+    var MODEL_VEO_31_FAST = "veo-3.1-fast-generate-preview";
+    var MODEL_VEO_31_LITE = "veo-3.1-lite-generate-preview";
 
     var path = null;
     var fs = null;
@@ -3068,11 +3071,208 @@
         var source = state && state.videoGenSettings ? state.videoGenSettings : {};
         return {
             mode: normalizeVideoMode(source.mode),
-            model: trimText(source.model || (window.VeoApi ? window.VeoApi.DEFAULT_MODEL_ID : "veo-3.1-generate-preview")) || "veo-3.1-generate-preview",
+            model: trimText(source.model || (window.VeoApi ? window.VeoApi.DEFAULT_MODEL_ID : MODEL_VEO_31)) || MODEL_VEO_31,
             aspectRatio: normalizeAspectRatio(source.aspectRatio || "16:9"),
             durationSeconds: parseInt(source.durationSeconds, 10) || 8,
             resolution: String(source.resolution || "720p").toLowerCase()
         };
+    }
+
+    function isVeo31LiteModel(modelId) {
+        return trimText(modelId || "") === MODEL_VEO_31_LITE;
+    }
+
+    function isVeo31FamilyModel(modelId) {
+        var normalized = trimText(modelId || "");
+        return normalized === MODEL_VEO_31 || normalized === MODEL_VEO_31_FAST || normalized === MODEL_VEO_31_LITE;
+    }
+
+    function getVideoGenerationConstraintContext(state, override) {
+        var sourceState = state || getState();
+        var settings = getVideoGenSettings(sourceState);
+        var shots = sourceState && sourceState.shots ? sourceState.shots : [];
+        var mode = normalizeVideoMode(override && override.mode ? override.mode : settings.mode);
+        var modelId = trimText(override && override.model ? override.model : settings.model) || MODEL_VEO_31;
+        var aspectRatio = normalizeAspectRatio(override && override.aspectRatio ? override.aspectRatio : settings.aspectRatio);
+        var durationSeconds = parseInt(override && override.durationSeconds !== undefined ? override.durationSeconds : settings.durationSeconds, 10) || 8;
+        var resolution = String(override && override.resolution ? override.resolution : settings.resolution || "720p").toLowerCase();
+        var startShotId = override && override.startShotId !== undefined ? override.startShotId : sourceState.startShotId;
+        var endShotId = override && override.endShotId !== undefined ? override.endShotId : sourceState.endShotId;
+        var hasStart = !!findShotById(shots, startShotId);
+        var hasEnd = !!findShotById(shots, endShotId);
+
+        return {
+            modelId: modelId,
+            mode: mode,
+            aspectRatio: aspectRatio,
+            durationSeconds: durationSeconds,
+            resolution: resolution,
+            hasStart: hasStart,
+            hasEnd: hasEnd,
+            isLite: isVeo31LiteModel(modelId),
+            isVeo31Family: isVeo31FamilyModel(modelId)
+        };
+    }
+
+    function getVideoGenerationConstraints(context) {
+        var constraints = {
+            allowReferenceMode: true,
+            allowedDurations: [4, 6, 8],
+            allowedResolutions: ["720p"],
+            allowedAspectRatios: ["16:9", "9:16"],
+            message: ""
+        };
+        var isInterpolation = context.mode === VIDEO_MODE_FRAMES && context.hasStart && context.hasEnd;
+
+        if (!context.isVeo31Family) {
+            constraints.allowedResolutions = ["720p", "1080p"];
+            return constraints;
+        }
+
+        constraints.allowedResolutions = context.durationSeconds === 8 ? ["720p", "1080p"] : ["720p"];
+
+        if (context.isLite) {
+            constraints.allowReferenceMode = false;
+            if (context.mode === VIDEO_MODE_REFERENCE) {
+                constraints.message = "Veo 3.1 Lite supports text, start frame, and start-end frame generation. Ingredients mode is not supported.";
+            }
+        }
+
+        if (context.mode === VIDEO_MODE_REFERENCE) {
+            constraints.allowedDurations = [8];
+            constraints.allowedResolutions = ["720p", "1080p"];
+            constraints.allowedAspectRatios = ["16:9"];
+            if (!constraints.message) {
+                constraints.message = "Reference Images mode requires 8s and 16:9.";
+            }
+            return constraints;
+        }
+
+        if (isInterpolation) {
+            constraints.allowedDurations = [8];
+            constraints.allowedResolutions = ["720p", "1080p"];
+            constraints.allowedAspectRatios = ["16:9", "9:16"];
+            constraints.message = context.isLite
+                ? "Veo 3.1 Lite start-end frame generation requires 8s."
+                : "Start-end frame generation requires 8s.";
+            return constraints;
+        }
+
+        return constraints;
+    }
+
+    function setSelectOptionsEnabled(selectEl, allowedValues) {
+        var normalizedAllowed = {};
+        var options;
+        var i;
+        var value;
+
+        if (!selectEl || !selectEl.options) {
+            return;
+        }
+
+        for (i = 0; i < allowedValues.length; i += 1) {
+            normalizedAllowed[String(allowedValues[i]).toLowerCase()] = true;
+        }
+
+        options = selectEl.options;
+        for (i = 0; i < options.length; i += 1) {
+            value = String(options[i].value || "").toLowerCase();
+            options[i].disabled = !normalizedAllowed[value];
+            options[i].hidden = false;
+        }
+    }
+
+    function applyVideoGenerationConstraints(state, override, options) {
+        var sourceState = state || getState();
+        var context = getVideoGenerationConstraintContext(sourceState, override || {});
+        var constraints = getVideoGenerationConstraints(context);
+        var modeSelect = getById("modelSelect");
+        var aspectRatioSelect = getById("aspectRatioSelect");
+        var durationSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
+        var btnReference = getById("btnModeReference");
+        var nextPatch = {};
+        var needsPatch = false;
+        var nextMode = context.mode;
+        var nextAspectRatio = context.aspectRatio;
+        var nextDuration = context.durationSeconds;
+        var nextResolution = context.resolution;
+        var silent = !!(options && options.silent);
+
+        if (btnReference) {
+            btnReference.disabled = !constraints.allowReferenceMode;
+            btnReference.title = constraints.allowReferenceMode
+                ? "Reference Images mode"
+                : "Veo 3.1 Lite does not support Ingredients mode";
+        }
+
+        if (!constraints.allowReferenceMode && nextMode === VIDEO_MODE_REFERENCE) {
+            nextMode = VIDEO_MODE_FRAMES;
+            needsPatch = true;
+        }
+
+        if (aspectRatioSelect) {
+            setSelectOptionsEnabled(aspectRatioSelect, constraints.allowedAspectRatios);
+            if (constraints.allowedAspectRatios.indexOf(nextAspectRatio) < 0) {
+                nextAspectRatio = constraints.allowedAspectRatios[0];
+                aspectRatioSelect.value = nextAspectRatio;
+                needsPatch = true;
+            } else {
+                aspectRatioSelect.value = nextAspectRatio;
+            }
+        }
+
+        if (durationSelect) {
+            setSelectOptionsEnabled(durationSelect, constraints.allowedDurations);
+            if (constraints.allowedDurations.indexOf(nextDuration) < 0) {
+                nextDuration = constraints.allowedDurations[0];
+                durationSelect.value = String(nextDuration);
+                needsPatch = true;
+            } else {
+                durationSelect.value = String(nextDuration);
+            }
+        }
+
+        constraints = getVideoGenerationConstraints({
+            modelId: context.modelId,
+            mode: nextMode,
+            aspectRatio: nextAspectRatio,
+            durationSeconds: nextDuration,
+            resolution: nextResolution,
+            hasStart: context.hasStart,
+            hasEnd: context.hasEnd,
+            isLite: context.isLite,
+            isVeo31Family: context.isVeo31Family
+        });
+
+        if (resolutionSelect) {
+            setSelectOptionsEnabled(resolutionSelect, constraints.allowedResolutions);
+            if (constraints.allowedResolutions.indexOf(nextResolution) < 0) {
+                nextResolution = constraints.allowedResolutions[0];
+                resolutionSelect.value = nextResolution;
+                needsPatch = true;
+            } else {
+                resolutionSelect.value = nextResolution;
+            }
+        }
+
+        if (modeSelect && modeSelect.value !== context.modelId) {
+            modeSelect.value = context.modelId;
+        }
+
+        if (needsPatch) {
+            nextPatch.mode = nextMode;
+            nextPatch.aspectRatio = nextAspectRatio;
+            nextPatch.durationSeconds = nextDuration;
+            nextPatch.resolution = nextResolution;
+            persistVideoGenSettings(nextPatch);
+            if (!silent && constraints.message) {
+                setStatus(constraints.message, false);
+            }
+        }
+
+        return constraints;
     }
 
     function getVideoRefs(state) {
@@ -4029,6 +4229,8 @@
                 group.model = group.model || trimText(item.modelId || "");
                 group.modeLabel = requestModeLabel(item.apiMode || item.uiMode || "");
                 group.aspectRatio = group.aspectRatio || normalizeAspectRatio(item.aspectRatio || "16:9");
+                group.durationSeconds = group.durationSeconds || (item.durationSeconds || null);
+                group.resolution = group.resolution || (item.resolution || null);
                 group.sampleCount = item.sampleCount || group.sampleCount || 1;
                 group.sourceMode = normalizeVideoMode(item.uiMode || (item.apiMode === "reference" ? VIDEO_MODE_REFERENCE : VIDEO_MODE_FRAMES));
                 if (!group.startShotId && item.startShotId) {
@@ -4156,6 +4358,8 @@
             group.model = group.model || trimText(item.model || "");
             group.modeLabel = requestModeLabel(item.requestMode || item.mode || "");
             group.aspectRatio = group.aspectRatio || normalizeAspectRatio(item.aspectRatio || "16:9");
+            group.durationSeconds = group.durationSeconds || (item.durationSeconds || null);
+            group.resolution = group.resolution || (item.resolution || null);
             group.sampleCount = item.sampleCount || group.sampleCount || 1;
             group.sourceMode = normalizeVideoMode(item.mode || (item.requestMode === "reference" ? VIDEO_MODE_REFERENCE : VIDEO_MODE_FRAMES));
             if (!group.startShotId && item.startShotId) {
@@ -4473,6 +4677,8 @@
         var modelSelect = getById("modelSelect");
         var imageModelSelect = getById("imageModelSelect");
         var aspectRatioSelect = getById("aspectRatioSelect");
+        var durationSecondsSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
         var imageAspectRatioSelect = getById("imageAspectRatioSelect");
         var imageSizeSelect = getById("imageSizeSelect");
         var videoMode;
@@ -4542,11 +4748,21 @@
             if (aspectRatioSelect && group.aspectRatio) {
                 setSelectValueIfExists(aspectRatioSelect, normalizeAspectRatio(group.aspectRatio));
             }
+            if (durationSecondsSelect && group.durationSeconds) {
+                setSelectValueIfExists(durationSecondsSelect, String(group.durationSeconds));
+            }
+            if (resolutionSelect && group.resolution) {
+                setSelectValueIfExists(resolutionSelect, String(group.resolution).toLowerCase());
+            }
             persistVideoGenSettings({
                 mode: videoMode,
                 model: modelSelect ? modelSelect.value : (group.model || ""),
-                aspectRatio: aspectRatioSelect ? aspectRatioSelect.value : normalizeAspectRatio(group.aspectRatio || "16:9")
+                aspectRatio: aspectRatioSelect ? aspectRatioSelect.value : normalizeAspectRatio(group.aspectRatio || "16:9"),
+                durationSeconds: parseInt(durationSecondsSelect ? durationSecondsSelect.value : group.durationSeconds || 8, 10) || 8,
+                resolution: String(resolutionSelect ? resolutionSelect.value : group.resolution || "720p").toLowerCase()
             });
+            applyVideoGenerationConstraints(getState(), null, { silent: true });
+            videoMode = normalizeVideoMode(getVideoGenSettings(getState()).mode);
             if (videoMode === VIDEO_MODE_FRAMES) {
                 if (group.startShotId && findShotById(state.shots || [], group.startShotId)) {
                     startShotId = group.startShotId;
@@ -5157,6 +5373,12 @@
                 appendMetaChip(builtSubLine, groupToRender.modeLabel, "chip-mode");
             }
             appendMetaChip(builtSubLine, groupToRender.aspectRatio || "-", "chip-ratio");
+            if (groupToRender.durationSeconds) {
+                appendMetaChip(builtSubLine, String(groupToRender.durationSeconds) + "s", "chip-duration");
+            }
+            if (groupToRender.resolution) {
+                appendMetaChip(builtSubLine, groupToRender.resolution, "chip-resolution");
+            }
             if (groupToRender.imageSize) {
                 appendMetaChip(builtSubLine, groupToRender.imageSize, "chip-size");
             }
@@ -6235,9 +6457,6 @@
         if (btnFrames) {
             btnFrames.disabled = false;
         }
-        if (btnReference) {
-            btnReference.disabled = false;
-        }
         if (generateBlock) {
             generateBlock.setAttribute("data-video-mode", mode);
             generateBlock.setAttribute("data-gen-type", activeGenerationType);
@@ -6293,13 +6512,19 @@
             }
         }
 
+        applyVideoGenerationConstraints(state, null, { silent: true });
+
         if (hint) {
+            var constraints = getVideoGenerationConstraints(getVideoGenerationConstraintContext(state));
             if (activeGenerationType === GEN_TYPE_IMAGE) {
                 hint.textContent = "Image mode: prompt + optional references (up to 4).";
                 hint.className = "refs-note";
             } else if (inlineUnavailable) {
                 hint.textContent = "Image inputs aren't confirmed for this key/project. Frames/Reference may fail with API 400, but you can still try.";
                 hint.className = "refs-note inline-status is-error";
+            } else if (constraints.message) {
+                hint.textContent = constraints.message;
+                hint.className = "refs-note";
             } else if (mode === VIDEO_MODE_FRAMES) {
                 hint.textContent = "Frames mode: no Start/End = Text-to-Video; Start only = Image-to-Video; Start+End = Interpolation.";
                 hint.className = "refs-note";
@@ -6319,12 +6544,16 @@
         var aspectSelect = getById("aspectRatioSelect");
         var imageAspectSelect = getById("imageAspectRatioSelect");
         var modelSelect = getById("modelSelect");
+        var durationSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
         var imageModelSelect = getById("imageModelSelect");
         var mode = normalizeVideoMode(getVideoGenSettings(state).mode);
         var videoModeLabel = "Frames";
         var videoSampleText = "x2";
         var imageSampleText = "x1";
         var videoAspectText = "16:9";
+        var videoDurationText = "8s";
+        var videoResolutionText = "720p";
         var imageAspectText = "1:1";
         var imageSettings = state && state.imageGenSettings ? state.imageGenSettings : {};
 
@@ -6341,6 +6570,12 @@
         if (aspectSelect && aspectSelect.value) {
             videoAspectText = String(aspectSelect.value);
         }
+        if (durationSelect && durationSelect.value) {
+            videoDurationText = String(durationSelect.value) + "s";
+        }
+        if (resolutionSelect && resolutionSelect.value) {
+            videoResolutionText = String(resolutionSelect.value);
+        }
         if (imageAspectSelect && imageAspectSelect.value) {
             imageAspectText = String(imageAspectSelect.value);
         }
@@ -6351,7 +6586,7 @@
             if (activeGenerationType === GEN_TYPE_IMAGE) {
                 videoBtn.textContent = "\ud83d\uddbc Image \u2022 " + imageSampleText + " \u2022 " + imageAspectText;
             } else {
-                videoBtn.textContent = "\ud83c\udfa5 Video \u2022 " + videoModeLabel + " \u2022 " + videoSampleText + " \u2022 " + videoAspectText;
+                videoBtn.textContent = "\ud83c\udfa5 Video \u2022 " + videoModeLabel + " \u2022 " + videoSampleText + " \u2022 " + videoAspectText + " \u2022 " + videoDurationText + " \u2022 " + videoResolutionText;
             }
         }
 
@@ -6384,12 +6619,20 @@
         var settings = getVideoGenSettings(state);
         var modelSelect = getById("modelSelect");
         var aspectSelect = getById("aspectRatioSelect");
+        var durationSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
 
         if (modelSelect) {
             modelSelect.value = settings.model;
         }
         if (aspectSelect) {
             aspectSelect.value = settings.aspectRatio;
+        }
+        if (durationSelect) {
+            setSelectValueIfExists(durationSelect, String(settings.durationSeconds || 8));
+        }
+        if (resolutionSelect) {
+            setSelectValueIfExists(resolutionSelect, String(settings.resolution || "720p").toLowerCase());
         }
     }
 
@@ -6501,6 +6744,8 @@
             "sampleCountSelect",
             "modelSelect",
             "aspectRatioSelect",
+            "durationSecondsSelect",
+            "resolutionSelect",
             "promptInput",
             "btnTabVideo",
             "btnTabImage"
@@ -6538,13 +6783,18 @@
         var sampleSelect = getById("sampleCountSelect");
         var modelSelect = getById("modelSelect");
         var aspectRatioSelect = getById("aspectRatioSelect");
+        var durationSecondsSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
         var prompt = trimText(promptInput ? promptInput.value : "");
         var sampleCount = parseSampleCount(sampleSelect ? sampleSelect.value : "2");
         var modelId = trimText(modelSelect ? modelSelect.value : videoSettings.model);
         var aspectRatio = normalizeAspectRatio(aspectRatioSelect ? aspectRatioSelect.value : videoSettings.aspectRatio);
+        var durationSeconds = parseInt(durationSecondsSelect ? durationSecondsSelect.value : videoSettings.durationSeconds, 10) || 8;
+        var resolution = String(resolutionSelect ? resolutionSelect.value : videoSettings.resolution || "720p").toLowerCase();
         var apiKey = getApiKeyFromStorage();
         var i;
         var refIds = [];
+        var constraints;
 
         if (!modelId && window.VeoApi) {
             modelId = window.VeoApi.DEFAULT_MODEL_ID || "veo-3.1-generate-preview";
@@ -6558,6 +6808,31 @@
         }
         if (!prompt) {
             throw new Error("Prompt is empty.");
+        }
+
+        constraints = getVideoGenerationConstraints({
+            modelId: modelId,
+            mode: mode,
+            aspectRatio: aspectRatio,
+            durationSeconds: durationSeconds,
+            resolution: resolution,
+            hasStart: !!startShot,
+            hasEnd: !!endShot,
+            isLite: isVeo31LiteModel(modelId),
+            isVeo31Family: isVeo31FamilyModel(modelId)
+        });
+
+        if (!constraints.allowReferenceMode && mode === VIDEO_MODE_REFERENCE) {
+            throw new Error(constraints.message || "Selected model does not support Ingredients mode.");
+        }
+        if (constraints.allowedDurations.indexOf(durationSeconds) < 0) {
+            throw new Error(constraints.message || "Selected duration is not supported for this request.");
+        }
+        if (constraints.allowedResolutions.indexOf(resolution) < 0) {
+            throw new Error("Selected resolution is not supported for this request.");
+        }
+        if (constraints.allowedAspectRatios.indexOf(aspectRatio) < 0) {
+            throw new Error("Selected aspect ratio is not supported for this request.");
         }
 
         if (mode === VIDEO_MODE_FRAMES) {
@@ -6611,8 +6886,8 @@
             modelId: modelId,
             aspectRatio: aspectRatio,
             mode: mode,
-            durationSeconds: 8,
-            resolution: "720p",
+            durationSeconds: durationSeconds,
+            resolution: resolution,
             videosDir: resolveLibraryVideosDir(),
             startShot: startShot,
             endShot: endShot,
@@ -9682,6 +9957,8 @@
         var promptInput = getById("promptInput");
         var modelSelect = getById("modelSelect");
         var aspectRatioSelect = getById("aspectRatioSelect");
+        var durationSecondsSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
         var imagePromptInput = getById("imagePromptInput");
         var savedPrompt = "";
         var savedModel = "";
@@ -9740,6 +10017,12 @@
         if (aspectRatioSelect) {
             aspectRatioSelect.value = normalizeAspectRatio(savedAspectRatio || currentVideoSettings.aspectRatio || "16:9");
         }
+        if (durationSecondsSelect) {
+            durationSecondsSelect.value = String(currentVideoSettings.durationSeconds || 8);
+        }
+        if (resolutionSelect) {
+            resolutionSelect.value = String(currentVideoSettings.resolution || "720p").toLowerCase();
+        }
         if (imagePromptInput) {
             imagePromptInput.value = savedImagePrompt || savedPrompt || "";
         }
@@ -9748,12 +10031,14 @@
         stateAdapterUpdate({
             videoGenSettings: {
                 mode: normalizeVideoMode(savedMode || currentVideoSettings.mode || VIDEO_MODE_FRAMES),
-                model: trimText(modelSelect ? modelSelect.value : currentVideoSettings.model) || "veo-3.1-generate-preview",
+                model: trimText(modelSelect ? modelSelect.value : currentVideoSettings.model) || MODEL_VEO_31,
                 aspectRatio: normalizeAspectRatio(aspectRatioSelect ? aspectRatioSelect.value : currentVideoSettings.aspectRatio),
-                durationSeconds: 8,
-                resolution: "720p"
+                durationSeconds: parseInt(durationSecondsSelect ? durationSecondsSelect.value : currentVideoSettings.durationSeconds, 10) || 8,
+                resolution: String(resolutionSelect ? resolutionSelect.value : currentVideoSettings.resolution || "720p").toLowerCase()
             }
         });
+
+        applyVideoGenerationConstraints(getState(), null, { silent: true });
 
         if (state && (!state.imageGenSettings || !state.imageGenSettings.model)) {
             stateAdapterUpdate({
@@ -9791,8 +10076,8 @@
             mode: normalizeVideoMode(patch && patch.mode ? patch.mode : current.mode),
             model: trimText(patch && patch.model ? patch.model : current.model) || current.model,
             aspectRatio: normalizeAspectRatio(patch && patch.aspectRatio ? patch.aspectRatio : current.aspectRatio),
-            durationSeconds: 8,
-            resolution: "720p"
+            durationSeconds: parseInt(patch && patch.durationSeconds !== undefined ? patch.durationSeconds : current.durationSeconds, 10) || 8,
+            resolution: String(patch && patch.resolution ? patch.resolution : current.resolution || "720p").toLowerCase()
         };
 
         stateAdapterUpdate({
@@ -9837,6 +10122,7 @@
 
         aspectRatioSelect.value = nextRatio;
         persistVideoAspectRatioChoice(nextRatio);
+        applyVideoGenerationConstraints(getState(), { aspectRatio: nextRatio }, { silent: true });
         renderFlowComposerSummary(getState());
     }
 
@@ -9862,6 +10148,7 @@
         if (!videoCapabilities.checked) {
             probeVideoCapabilities(false);
         }
+        applyVideoGenerationConstraints(getState(), { mode: nextMode }, { silent: true });
     }
 
     function probeVideoCapabilities(force) {
@@ -10001,6 +10288,8 @@
         var sampleCountSelect = getById("sampleCountSelect");
         var modelSelect = getById("modelSelect");
         var aspectRatioSelect = getById("aspectRatioSelect");
+        var durationSecondsSelect = getById("durationSecondsSelect");
+        var resolutionSelect = getById("resolutionSelect");
         var promptInput = getById("promptInput");
         var imagePromptInput = getById("imagePromptInput");
         var imageSampleCountSelect = getById("imageSampleCountSelect");
@@ -10325,6 +10614,7 @@
                     // ignore
                 }
                 persistVideoGenSettings({ model: nextModel });
+                applyVideoGenerationConstraints(getState(), { model: nextModel });
                 videoCapabilities.checked = false;
                 videoCapabilitiesSignature = "";
                 probeVideoCapabilities(false);
@@ -10341,6 +10631,23 @@
                 var nextValue = normalizeAspectRatio(aspectRatioSelect.value || "16:9");
                 aspectRatioSelect.value = nextValue;
                 persistVideoAspectRatioChoice(nextValue, true);
+                applyVideoGenerationConstraints(getState(), { aspectRatio: nextValue });
+                renderFlowComposerSummary(getState());
+            });
+        }
+        if (durationSecondsSelect) {
+            durationSecondsSelect.addEventListener("change", function () {
+                var nextDuration = parseInt(durationSecondsSelect.value, 10) || 8;
+                persistVideoGenSettings({ durationSeconds: nextDuration });
+                applyVideoGenerationConstraints(getState(), { durationSeconds: nextDuration });
+                renderFlowComposerSummary(getState());
+            });
+        }
+        if (resolutionSelect) {
+            resolutionSelect.addEventListener("change", function () {
+                var nextResolution = String(resolutionSelect.value || "720p").toLowerCase();
+                persistVideoGenSettings({ resolution: nextResolution });
+                applyVideoGenerationConstraints(getState(), { resolution: nextResolution });
                 renderFlowComposerSummary(getState());
             });
         }

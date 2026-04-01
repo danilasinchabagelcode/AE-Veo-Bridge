@@ -175,7 +175,7 @@
                             </button>
                         </div>
 
-                        <div id="videoOptionsRow" class="flow-options-grid three">
+                        <div id="videoOptionsRow" class="flow-options-grid five">
                             <label class="flow-opt">
                                 <span>Samples</span>
                                 <select id="sampleCountSelect">
@@ -197,6 +197,22 @@
                                 <select id="modelSelect">
                                     <option value="veo-3.1-generate-preview">Veo 3.1</option>
                                     <option value="veo-3.1-fast-generate-preview">Veo 3.1 Fast</option>
+                                    <option value="veo-3.1-lite-generate-preview">Veo 3.1 Lite</option>
+                                </select>
+                            </label>
+                            <label class="flow-opt">
+                                <span>Duration</span>
+                                <select id="durationSecondsSelect">
+                                    <option value="4">4s</option>
+                                    <option value="6">6s</option>
+                                    <option value="8" selected>8s</option>
+                                </select>
+                            </label>
+                            <label class="flow-opt">
+                                <span>Resolution</span>
+                                <select id="resolutionSelect">
+                                    <option value="720p" selected>720p</option>
+                                    <option value="1080p">1080p</option>
                                 </select>
                             </label>
                         </div>

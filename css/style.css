@@ -2340,7 +2340,7 @@ body.gallery-flow {
     position: absolute;
     right: 8px;
     bottom: 70px;
-    width: min(520px, calc(100% - 22px));
+    width: min(660px, calc(100% - 22px));
     border-radius: 6px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(30, 30, 30, 0.985);
@@ -2378,6 +2378,10 @@ body.gallery-flow {
 
 .gallery-flow .flow-options-grid.four {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.gallery-flow .flow-options-grid.five {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .gallery-flow .flow-opt {
@@ -2851,6 +2855,7 @@ body.gallery-flow {
         flex-wrap: wrap;
     }
 
+    .gallery-flow .flow-options-grid.five,
     .gallery-flow .flow-options-grid.four,
     .gallery-flow .flow-options-grid.three {
         grid-template-columns: repeat(2, minmax(0, 1fr));
